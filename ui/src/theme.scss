@@ -1,12 +1,13 @@
-//$background1: #211E1C;
-$background1: rgb(33,37,41);
-$background2: #0f0f0f;
+// Refreshed dark palette: softer slate surfaces and cleaner neutral text,
+// keeping the reMarkable orange accent. Tune these to taste.
+$background1: #1c1f26; // surfaces: nav, cards, inputs
+$background2: #14161b; // page background
 
-$foreground1: #f8f7f6;
-$foreground2: #e8e3d9;
-$foreground3: #e4dbaf;
+$foreground1: #f5f6f8; // primary text
+$foreground2: #c7ccd6; // muted text / borders
+$foreground3: #e4dbaf; // warm highlight
 
 $action-rgb: 238, 123, 48;
-$action: #EE7B30;
-$accept: #00e676;
-$reject: #ff1744;
+$action: #ee7b30; // accent
+$accept: #2ecc71;
+$reject: #ff5252;
