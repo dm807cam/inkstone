@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ddvk/rmfakecloud
+  repository: ghcr.io/dm807cam/inkstone
   pullPolicy: Always
   tag: "latest"
 

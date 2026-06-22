@@ -1,8 +1,14 @@
-# rmfakecloud
+# Inkstone
 
-This is a replacement of the cloud, in case you want to sync/backup your files and have full control of the hosting environment.
+**Inkstone** is a self-hosted reMarkable sync cloud — a maintained fork of
+[rmfakecloud](https://github.com/ddvk/rmfakecloud) focused on first-class
+support for the **v6 file format (Paper Pro, software 3.x)** with native,
+in-process PDF rendering via Cairo (no `unipdf`/`rmapi` dependencies).
 
-See the [project documentation](https://ddvk.github.io/rmfakecloud/) for setup and configuration.
+Use it to sync/backup your files and keep full control of the hosting
+environment.
+
+See the [project documentation](https://dm807cam.github.io/rmfakecloud/) for setup and configuration.
 
 ## Supported Devices
 
@@ -90,7 +96,7 @@ The Docker image includes native v6 support:
 ```bash
 docker run -d -p 3000:3000 \
   -v $PWD/data:/data \
-  ddvk/rmfakecloud:latest
+  ghcr.io/dm807cam/inkstone:latest
 ```
 
 ### Performance
