@@ -37,7 +37,10 @@ func (fs *FileSystemStorage) GetUser(uid string) (user *model.User, err error) {
 		err = errors.New("empty user")
 		return
 	}
-	profilePath := fs.getPathFromUser(uid, profileName)
+	profilePath, err := fs.getPathFromUser(uid, profileName)
+	if err != nil {
+		return
+	}
 	_, err = os.Stat(profilePath)
 	if err != nil {
 		return
@@ -96,7 +99,10 @@ func (fs *FileSystemStorage) RegisterUser(u *model.User) (err error) {
 		return
 	}
 
-	profilePath := fs.getPathFromUser(u.ID, profileName)
+	profilePath, err := fs.getPathFromUser(u.ID, profileName)
+	if err != nil {
+		return
+	}
 	// Create the profile file
 	js, err := u.Serialize()
 	if err != nil {
@@ -131,7 +137,10 @@ func (fs *FileSystemStorage) UpdateUser(u *model.User) (err error) {
 		return
 	}
 
-	profilePath := fs.getPathFromUser(u.ID, profileName)
+	profilePath, err := fs.getPathFromUser(u.ID, profileName)
+	if err != nil {
+		return
+	}
 	// Overwrite the profile
 	js, err := u.Serialize()
 	if err != nil {

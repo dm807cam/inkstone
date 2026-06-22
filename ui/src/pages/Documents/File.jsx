@@ -9,14 +9,15 @@ import apiservice from "../../services/api.service"
 import NameTag from "../../components/NameTag"
 
 import { pdfjs, Document, Page } from "react-pdf";
-// import 'react-pdf/dist/Page/AnnotationLayer.css';
-// import 'react-pdf/dist/Page/TextLayer.css';
-// import 'react-pdf/dist/Page/TextLayer.css';
-//pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js"
-// pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-//   'pdfjs-dist/build/pdf.worker.min.mjs',
-//   import.meta.url,
-// ).toString(); 
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+// Point pdf.js at the worker bundled with the pdfjs-dist version that react-pdf
+// pulls in. Without this the worker never loads and the preview stays blank.
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 
 export default function FileViewer({ file, onSelect }) {

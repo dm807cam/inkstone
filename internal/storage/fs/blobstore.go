@@ -201,21 +201,49 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 
 			log.Debugf("Built page map with %d entries", len(pageMap))
 
-			// Extract all pages in order
-			var pageHashes []string
+			// Find the imported background PDF (annotated document), if any.
+			var bgHash string
+			for _, f := range doc.Files {
+				if filepath.Ext(f.EntryName) == storage.PdfFileExt {
+					bgHash = f.Hash
+					break
+				}
+			}
+
+			// Build a page-index-aligned slice of raw v6 .rm data. Index i holds
+			// the annotations for content page i (nil if that page was not
+			// annotated). Keeping the slice aligned with content.Pages lets us
+			// overlay each annotation onto the matching background page.
+			var pages [][]byte
+			hasAnnotations := false
 			if len(contentData.Pages) > 0 {
-				// Use pages from content.json in the correct order
-				for _, pageName := range contentData.Pages {
-					if hash, ok := pageMap[pageName]; ok {
-						pageHashes = append(pageHashes, hash)
-						log.Debugf("Found page %s -> %s", pageName, hash)
-					} else {
-						log.Warnf("Page %s not found in pageMap", pageName)
+				pages = make([][]byte, len(contentData.Pages))
+				for i, pageName := range contentData.Pages {
+					hash, ok := pageMap[pageName]
+					if !ok {
+						log.Debugf("Page %s has no .rm (un-annotated)", pageName)
+						continue
 					}
+					rmReader, err := ls.GetReader(hash)
+					if err != nil {
+						log.Errorf("Failed to get v6 page %d data: %v", i, err)
+						writer.CloseWithError(err)
+						return
+					}
+					rmData, err := io.ReadAll(rmReader)
+					rmReader.Close()
+					if err != nil {
+						log.Errorf("Failed to read v6 page %d data: %v", i, err)
+						writer.CloseWithError(err)
+						return
+					}
+					pages[i] = rmData
+					hasAnnotations = true
 				}
 			} else {
-				// No pages in content.json, use order from doc.Files (index file order)
-				// doc.Files is sorted alphabetically which reverses page order, so we reverse it back
+				// No pages in content.json: fall back to doc.Files order
+				// (alphabetical, which reverses page order, so reverse it back).
+				// No background page mapping is possible in this fallback.
 				log.Warn("content.json has no pages array, using .rm files in reversed index order")
 				var tempHashes []string
 				for _, f := range doc.Files {
@@ -223,49 +251,59 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 						tempHashes = append(tempHashes, f.Hash)
 					}
 				}
-				// Reverse the order to get correct page sequence
 				for i := len(tempHashes) - 1; i >= 0; i-- {
-					pageHashes = append(pageHashes, tempHashes[i])
-					log.Infof("Using .rm file in reversed order: page %d", len(tempHashes)-i)
+					rmReader, err := ls.GetReader(tempHashes[i])
+					if err != nil {
+						writer.CloseWithError(err)
+						return
+					}
+					rmData, err := io.ReadAll(rmReader)
+					rmReader.Close()
+					if err != nil {
+						writer.CloseWithError(err)
+						return
+					}
+					pages = append(pages, rmData)
+					hasAnnotations = true
 				}
 			}
 
-			if len(pageHashes) == 0 {
+			if !hasAnnotations {
 				log.Error("No pages found in v6 document")
 				log.Debugf("Doc files: %+v", doc.Files)
 				writer.CloseWithError(fmt.Errorf("no pages found"))
 				return
 			}
 
-			log.Infof("Exporting %d v6 pages", len(pageHashes))
+			log.Infof("Exporting %d v6 pages (background=%t)", len(pages), bgHash != "")
 
-			// Read all pages into memory
-			var pages [][]byte
-			for i, pageHash := range pageHashes {
-				rmReader, err := ls.GetReader(pageHash)
+			if bgHash != "" {
+				// Annotated imported PDF: overlay annotations onto the original.
+				bgReader, err := ls.GetReader(bgHash)
 				if err != nil {
-					log.Errorf("Failed to get v6 page %d data: %v", i, err)
+					log.Errorf("Failed to get background PDF: %v", err)
 					writer.CloseWithError(err)
 					return
 				}
-
-				rmData, err := io.ReadAll(rmReader)
-				rmReader.Close()
-				if err != nil {
-					log.Errorf("Failed to read v6 page %d data: %v", i, err)
+				defer bgReader.Close()
+				if err = exporter.ExportV6MultiPageOverBackground(pages, bgReader, writer); err != nil {
+					log.Errorf("Failed to overlay v6 annotations onto background: %v", err)
 					writer.CloseWithError(err)
 					return
 				}
-
-				pages = append(pages, rmData)
-			}
-
-			// Use rmc-go library for multipage export (in-process, Cairo renderer)
-			err = exporter.ExportV6MultiPageToPdfNative(pages, writer)
-			if err != nil {
-				log.Errorf("Failed to export v6 multipage with rmc-go: %v", err)
-				writer.CloseWithError(err)
-				return
+			} else {
+				// Pure notebook: render annotations only (drop un-annotated gaps).
+				dense := make([][]byte, 0, len(pages))
+				for _, p := range pages {
+					if len(p) > 0 {
+						dense = append(dense, p)
+					}
+				}
+				if err = exporter.ExportV6MultiPageToPdfNative(dense, writer); err != nil {
+					log.Errorf("Failed to export v6 multipage with rmc-go: %v", err)
+					writer.CloseWithError(err)
+					return
+				}
 			}
 		}()
 	} else {
@@ -907,4 +945,3 @@ func generationFromFileSize(size int64) int64 {
 	//time + 1 space + 64 hash + 1 newline
 	return size / 86
 }
-

@@ -28,10 +28,12 @@ RUN go generate ./... && CGO_ENABLED=1 go build -tags cairo -ldflags "-s -w -X m
 FROM debian:bookworm-slim
 EXPOSE 3000
 
-# Install Cairo runtime libraries
+# Install Cairo runtime libraries. fonts-dejavu-core provides actual font files
+# for Cairo text rendering (libcairo2 pulls in fontconfig/freetype but no fonts).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libcairo2 \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=gobuilder /src/rmfakecloud-docker /rmfakecloud

@@ -3,8 +3,11 @@ LDFLAGS := "-s -w -X main.version=$(VERSION)"
 OUT_DIR := dist
 CMD := ./cmd/rmfakecloud
 BINARY := rmfakecloud
-BUILD = CGO_ENABLED=1 go build -tags cairo -ldflags $(LDFLAGS) -o $(@) $(CMD)
-BUILD_CAIRO = $(BUILD)
+# Default build is pure-Go (CGO disabled) so it cross-compiles cleanly. These
+# binaries use the pdf_stub.go path and return a clear error for v6/Cairo PDF
+# export. Cairo PDF rendering requires CGO + libcairo and only builds natively.
+BUILD = CGO_ENABLED=0 go build -ldflags $(LDFLAGS) -o $(@) $(CMD)
+BUILD_CAIRO = CGO_ENABLED=1 go build -tags cairo -ldflags $(LDFLAGS) -o $(@) $(CMD)
 ASSETS = ui/dist
 GOFILES := $(shell find . -iname '*.go' ! -iname "*_test.go")
 GOFILES += $(ASSETS)
@@ -23,7 +26,7 @@ build-cairo: $(OUT_DIR)/$(BINARY)-cairo-x64
 all: $(TARGETS)
 
 $(OUT_DIR)/$(BINARY)-x64:$(GOFILES)
-	GOOS=linux $(BUILD)
+	GOOS=linux $(BUILD_CAIRO)
 
 $(OUT_DIR)/$(BINARY)-armv6:$(GOFILES)
 	GOARCH=arm GOARM=6 $(BUILD)
@@ -37,10 +40,15 @@ $(OUT_DIR)/$(BINARY)-win64:$(GOFILES)
 $(OUT_DIR)/$(BINARY)-arm64:$(GOFILES)
 	GOARCH=arm64 $(BUILD)
 
+# Built natively (linux/amd64 on CI) with Cairo, then packaged into the
+# debian-based runtime image which ships libcairo2.
 $(OUT_DIR)/$(BINARY)-docker:$(GOFILES)
-	$(BUILD)
+	GOOS=linux $(BUILD_CAIRO)
 
-# Cairo-enabled builds (native rmc-go support)
+# Cairo-enabled builds (native rmc-go support).
+# NOTE: cairo-arm64 cross-compiles CGO and requires an aarch64 cross toolchain
+# plus arm64 libcairo (e.g. via a per-arch container build); it will fail on a
+# plain amd64 host without one.
 $(OUT_DIR)/$(BINARY)-cairo-x64:$(GOFILES)
 	GOOS=linux $(BUILD_CAIRO)
 

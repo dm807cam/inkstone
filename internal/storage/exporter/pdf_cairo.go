@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"unsafe"
 
 	"github.com/ddvk/rmfakecloud/internal/encoding/rm"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -19,8 +18,15 @@ import (
 /*
 #cgo pkg-config: cairo
 #include <stdlib.h>
+#include <stdint.h>
 #include <cairo.h>
 #include <cairo-pdf.h>
+
+// Wrapper so the cairo surface handle stays an integer on the Go side and we
+// avoid a uintptr->unsafe.Pointer conversion that `go vet` flags.
+static void rmf_pdf_surface_set_size(uintptr_t s, double w, double h) {
+	cairo_pdf_surface_set_size((cairo_surface_t *)s, w, h);
+}
 */
 import "C"
 
@@ -51,7 +57,7 @@ func normalized(p1 rm.Point, scale float64) (float64, float64) {
 // setPDFPageSize sets the size for the current page in a PDF surface
 func setPDFPageSize(surface *cairo.Surface, width, height float64) {
 	surfacePtr, _ := surface.Native()
-	C.cairo_pdf_surface_set_size((*C.cairo_surface_t)(unsafe.Pointer(surfacePtr)), C.double(width), C.double(height))
+	C.rmf_pdf_surface_set_size(C.uintptr_t(surfacePtr), C.double(width), C.double(height))
 }
 
 func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGeneratorOptions) error {
@@ -112,8 +118,13 @@ func (p *PdfGenerator) generateAnnotationsOnly(zip *MyArchive, output io.Writer)
 
 		pageCount++
 
-		// Set page size (for pages after the first)
+		// Advance to a new page for every page after the first. ShowPage
+		// finalizes the current page and starts a fresh one; calling it here
+		// (instead of after the final page) avoids emitting a trailing blank
+		// page and works correctly even when pages are skipped.
 		if pageCount > 1 {
+			pdfSurface.ShowPage()
+
 			var pageWidth, pageHeight float64
 			if p.template {
 				pageWidth, pageHeight = rmPageSize.Width, rmPageSize.Height
@@ -146,11 +157,6 @@ func (p *PdfGenerator) generateAnnotationsOnly(zip *MyArchive, output io.Writer)
 		// Add page numbers if requested
 		if p.options.AddPageNumbers {
 			p.drawPageNumber(pdfSurface, pageCount, pageWidth, pageHeight)
-		}
-
-		// Show page (prepare for next page)
-		if pageCount < len(zip.Pages) || p.options.AllPages {
-			pdfSurface.ShowPage()
 		}
 	}
 
@@ -202,7 +208,7 @@ func (p *PdfGenerator) generateWithBackground(zip *MyArchive, output io.Writer) 
 	tmpBackground.Close()
 	defer os.Remove(tmpBackgroundPath)
 
-	// Step 3: Merge background and annotations using pdfcpu
+	// Step 3: Overlay annotations onto the background using pdfcpu.
 	tmpOutput, err := os.CreateTemp("", "rmfakecloud-merged-*.pdf")
 	if err != nil {
 		return fmt.Errorf("failed to create temp output file: %w", err)
@@ -211,32 +217,16 @@ func (p *PdfGenerator) generateWithBackground(zip *MyArchive, output io.Writer) 
 	tmpOutput.Close()
 	defer os.Remove(tmpOutputPath)
 
-	outFile, err := os.Create(tmpOutputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer outFile.Close()
-
-	// Open both PDFs as ReadSeekers
-	bgFile, err := os.Open(tmpBackgroundPath)
-	if err != nil {
-		return fmt.Errorf("failed to open background PDF: %w", err)
-	}
-	defer bgFile.Close()
-
-	annFile, err := os.Open(tmpAnnotationsPath)
-	if err != nil {
-		return fmt.Errorf("failed to open annotations PDF: %w", err)
-	}
-	defer annFile.Close()
-
-	// Merge: background first, then overlay annotations
+	// Stamp the annotation layer ON TOP of the background, page by page.
+	// MergeRaw concatenates pages (background pages followed by annotation
+	// pages); we want each annotation page overlaid on the matching background
+	// page. AddPDFWatermarksFile with a multi-page stamp PDF (PdfPageNrSrc==0)
+	// applies stamp page N onto target page N.
 	conf := model.NewDefaultConfiguration()
-	rsc := []io.ReadSeeker{bgFile, annFile}
-	if err := api.MergeRaw(rsc, outFile, false, conf); err != nil {
-		return fmt.Errorf("failed to merge PDFs: %w", err)
+	const stampDesc = "scale:1.0 rel, pos:c, rot:0"
+	if err := api.AddPDFWatermarksFile(tmpBackgroundPath, tmpOutputPath, nil, true, tmpAnnotationsPath, stampDesc, conf); err != nil {
+		return fmt.Errorf("failed to stamp annotations onto background: %w", err)
 	}
-	outFile.Close()
 
 	// Copy merged result to output
 	mergedFile, err := os.Open(tmpOutputPath)

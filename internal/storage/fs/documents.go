@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -45,8 +46,32 @@ func (fs *FileSystemStorage) getUserBlobPath(uid string) string {
 	return filepath.Join(fs.getUserPath(uid), SyncFolder)
 }
 
-func (fs *FileSystemStorage) getPathFromUser(uid, path string) string {
-	return filepath.Join(fs.getUserPath(uid), sanitizeFileName(path))
+// containedPath returns the cleaned absolute form of full only if it resolves
+// inside base; otherwise it returns an error. This is a defense-in-depth
+// barrier against path traversal (recognized by static analyzers via the
+// filepath.Rel + ".." rejection pattern).
+func containedPath(base, full string) (string, error) {
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return "", err
+	}
+	absFull, err := filepath.Abs(full)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(absBase, absFull)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("path %q escapes base directory", full)
+	}
+	return absFull, nil
+}
+
+func (fs *FileSystemStorage) getPathFromUser(uid, path string) (string, error) {
+	userPath := fs.getUserPath(uid)
+	return containedPath(userPath, filepath.Join(userPath, sanitizeFileName(path)))
 }
 
 // ExportDocument Exports a document to the outputType
@@ -55,21 +80,29 @@ func (fs *FileSystemStorage) ExportDocument(uid, id, outputType string, exportOp
 		return nil, errors.New("todo: only pdfs supported")
 	}
 
-	cacheDirPath := fs.getPathFromUser(uid, CacheDir)
-	err := os.MkdirAll(cacheDirPath, 0700)
+	cacheDirPath, err := fs.getPathFromUser(uid, CacheDir)
 	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(cacheDirPath, 0700); err != nil {
 		return nil, err
 	}
 	sanitizedID := common.Sanitize(id)
 
-	zipFilePath := fs.getPathFromUser(uid, sanitizedID+storage.ZipFileExt)
+	zipFilePath, err := fs.getPathFromUser(uid, sanitizedID+storage.ZipFileExt)
+	if err != nil {
+		return nil, err
+	}
 	log.Debugln("Fullpath:", zipFilePath)
 	rawStat, err := os.Stat(zipFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("cant find raw document %v", err)
 	}
 
-	outputFilePath := filepath.Join(cacheDirPath, sanitizedID+"-annotated.pdf")
+	outputFilePath, err := containedPath(cacheDirPath, filepath.Join(cacheDirPath, sanitizedID+"-annotated.pdf"))
+	if err != nil {
+		return nil, err
+	}
 	outStat, err := os.Stat(outputFilePath)
 
 	// exists and not older
@@ -163,34 +196,42 @@ func (fs *FileSystemStorage) ExportDocument(uid, id, outputType string, exportOp
 
 // GetDocument Opens a document by id
 func (fs *FileSystemStorage) GetDocument(uid, id string) (io.ReadCloser, error) {
-	fullPath := fs.getPathFromUser(uid, id+storage.ZipFileExt)
+	fullPath, err := fs.getPathFromUser(uid, common.Sanitize(id)+storage.ZipFileExt)
+	if err != nil {
+		return nil, err
+	}
 	log.Debugln("Fullpath:", fullPath)
-	reader, err := os.Open(fullPath)
-	return reader, err
+	return os.Open(fullPath)
 }
 
 // RemoveDocument removes document (moves it to trash)
 func (fs *FileSystemStorage) RemoveDocument(uid, id string) error {
 	sanitizedID := common.Sanitize(id)
 
-	trashDir := fs.getPathFromUser(uid, DefaultTrashDir)
-	err := os.MkdirAll(trashDir, 0700)
+	trashDir, err := fs.getPathFromUser(uid, DefaultTrashDir)
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(trashDir, 0700); err != nil {
 		return err
 	}
 	//do not delete, move to trash
 	log.Info(trashDir)
 	meta := sanitizedID + storage.MetadataFileExt
-	fullPath := fs.getPathFromUser(uid, meta)
-	err = os.Rename(fullPath, filepath.Join(trashDir, meta))
+	fullPath, err := fs.getPathFromUser(uid, meta)
 	if err != nil {
+		return err
+	}
+	if err = os.Rename(fullPath, filepath.Join(trashDir, meta)); err != nil {
 		return err
 	}
 
 	zipfile := sanitizedID + storage.ZipFileExt
-	fullPath = fs.getPathFromUser(uid, zipfile)
-	err = os.Rename(fullPath, filepath.Join(trashDir, zipfile))
+	fullPath, err = fs.getPathFromUser(uid, zipfile)
 	if err != nil {
+		return err
+	}
+	if err = os.Rename(fullPath, filepath.Join(trashDir, zipfile)); err != nil {
 		return err
 	}
 	return nil
@@ -198,7 +239,10 @@ func (fs *FileSystemStorage) RemoveDocument(uid, id string) error {
 
 // StoreDocument stores a document
 func (fs *FileSystemStorage) StoreDocument(uid, id string, stream io.ReadCloser) error {
-	fullPath := fs.getPathFromUser(uid, id+storage.ZipFileExt)
+	fullPath, err := fs.getPathFromUser(uid, common.Sanitize(id)+storage.ZipFileExt)
+	if err != nil {
+		return err
+	}
 	file, err := os.Create(fullPath)
 	if err != nil {
 		return err
@@ -229,4 +273,3 @@ func (fs *FileSystemStorage) GetStorageURL(uid, id string) (docurl string, expir
 
 	return fmt.Sprintf("%s%s/%s", uploadRL, routeStorage, url.QueryEscape(signedToken)), exp, nil
 }
-

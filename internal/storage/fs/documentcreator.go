@@ -69,7 +69,10 @@ func (fs *FileSystemStorage) CreateFolder(uid, name, parent string) (*storage.Do
 		return nil, err
 	}
 
-	metafilePath := fs.getPathFromUser(uid, docID+storage.MetadataFileExt)
+	metafilePath, err := fs.getPathFromUser(uid, docID+storage.MetadataFileExt)
+	if err != nil {
+		return nil, err
+	}
 	err = os.WriteFile(metafilePath, jsn, 0600)
 
 	if err != nil {
@@ -77,7 +80,10 @@ func (fs *FileSystemStorage) CreateFolder(uid, name, parent string) (*storage.Do
 	}
 
 	//create zip from pdf
-	zipfile := fs.getPathFromUser(uid, docID+storage.ZipFileExt)
+	zipfile, err := fs.getPathFromUser(uid, docID+storage.ZipFileExt)
+	if err != nil {
+		return nil, err
+	}
 	file, err := os.Create(zipfile)
 	if err != nil {
 		return nil, err
@@ -138,7 +144,10 @@ func (fs *FileSystemStorage) CreateDocument(uid, filename, parent string, stream
 		docid = uuid.New().String()
 	}
 	//create zip from pdf
-	zipfile := fs.getPathFromUser(uid, docid+storage.ZipFileExt)
+	zipfile, err := fs.getPathFromUser(uid, docid+storage.ZipFileExt)
+	if err != nil {
+		return
+	}
 	file, err := os.Create(zipfile)
 	if err != nil {
 		return
@@ -198,7 +207,10 @@ func (fs *FileSystemStorage) CreateDocument(uid, filename, parent string, stream
 		Version: 1,
 	}
 	//save metadata
-	metafilePath := fs.getPathFromUser(uid, docid+storage.MetadataFileExt)
+	metafilePath, err := fs.getPathFromUser(uid, docid+storage.MetadataFileExt)
+	if err != nil {
+		return
+	}
 	err = os.WriteFile(metafilePath, jsn, 0600)
 	return
 }
