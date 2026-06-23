@@ -4,6 +4,12 @@
 
 :root {
     height:100%;
+    // Modern system font stack + slightly larger radius for a fresher look.
+    --bs-font-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --bs-body-font-family: var(--bs-font-sans-serif);
+    --bs-border-radius: 0.5rem;
+    --bs-border-radius-sm: 0.35rem;
+    --bs-border-radius-lg: 0.75rem;
     --bs-code-color: #{$action} !important;
     --bs-body-bg: #{$background1} !important;
     --bs-border-color: #{$foreground2} !important;
@@ -76,6 +82,8 @@ html, body {
     height: 100%;
     overflow: hidden;
     background-color: $background2;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 #root {

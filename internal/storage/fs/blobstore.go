@@ -5,21 +5,24 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/danjacques/gofslock/fslock"
+	"github.com/ddvk/rmfakecloud/internal/archive"
 	"github.com/ddvk/rmfakecloud/internal/common"
 	"github.com/ddvk/rmfakecloud/internal/config"
 	"github.com/ddvk/rmfakecloud/internal/storage"
 	"github.com/ddvk/rmfakecloud/internal/storage/exporter"
 	"github.com/ddvk/rmfakecloud/internal/storage/models"
 	"github.com/google/uuid"
+	"github.com/juju/fslock"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -128,20 +131,202 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 	}
 	ls := fs.BlobStorage(uid)
 
-	archive, err := models.ArchiveFromHashDoc(doc, ls)
-	if err != nil {
-		return nil, err
-	}
-	reader, writer := io.Pipe()
-	go func() {
-		err = exporter.RenderRmapi(archive, writer)
-		if err != nil {
-			log.Error(err)
-			writer.Close()
-			return
+	// Detect version BEFORE trying to load archive
+	// This is crucial because v6 files can't be unmarshaled by rmapi
+	version := exporter.VersionUnknown
+	var firstRmHash string
+
+	// Find first .rm file in doc
+	for _, f := range doc.Files {
+		if filepath.Ext(f.EntryName) == storage.RmFileExt {
+			firstRmHash = f.Hash
+			break
 		}
-		writer.Close()
-	}()
+	}
+
+	// Detect version from raw .rm blob
+	if firstRmHash != "" {
+		reader, err := ls.GetReader(firstRmHash)
+		if err == nil {
+			defer reader.Close()
+			// Read just enough for version detection
+			header := make([]byte, 43)
+			n, err := reader.Read(header)
+			if err == nil || err == io.EOF {
+				version, _ = exporter.DetectRmVersionFromBytes(header[:n])
+			}
+		}
+	}
+
+	log.Debugf("Detected format %s for blob doc %s", version.String(), docid)
+
+	reader, writer := io.Pipe()
+
+	// Route to appropriate renderer
+	if version == exporter.VersionV6 {
+		log.Infof("Using native rmc-go for v6 format blob doc %s", docid)
+
+		go func() {
+			defer writer.Close()
+
+			// Extract .rm files directly from blob storage without parsing
+			// First, get content.json to know page order
+			var contentData archive.Content
+			for _, f := range doc.Files {
+				if filepath.Ext(f.EntryName) == storage.ContentFileExt {
+					blob, err := ls.GetReader(f.Hash)
+					if err == nil {
+						contentBytes, _ := io.ReadAll(blob)
+						blob.Close()
+						err = json.Unmarshal(contentBytes, &contentData)
+						if err != nil {
+							log.Warnf("Failed to unmarshal content.json: %v", err)
+						}
+					}
+					break
+				}
+			}
+
+			log.Debugf("Content has %d pages", len(contentData.Pages))
+
+			// Build map of page names to hashes
+			pageMap := make(map[string]string)
+			for _, f := range doc.Files {
+				if filepath.Ext(f.EntryName) == storage.RmFileExt {
+					name := strings.TrimSuffix(filepath.Base(f.EntryName), storage.RmFileExt)
+					pageMap[name] = f.Hash
+					log.Debugf("Found .rm file: %s -> %s", name, f.Hash)
+				}
+			}
+
+			log.Debugf("Built page map with %d entries", len(pageMap))
+
+			// Find the imported background PDF (annotated document), if any.
+			var bgHash string
+			for _, f := range doc.Files {
+				if filepath.Ext(f.EntryName) == storage.PdfFileExt {
+					bgHash = f.Hash
+					break
+				}
+			}
+
+			// Build a page-index-aligned slice of raw v6 .rm data. Index i holds
+			// the annotations for content page i (nil if that page was not
+			// annotated). Keeping the slice aligned with content.Pages lets us
+			// overlay each annotation onto the matching background page.
+			var pages [][]byte
+			hasAnnotations := false
+			if len(contentData.Pages) > 0 {
+				pages = make([][]byte, len(contentData.Pages))
+				for i, pageName := range contentData.Pages {
+					hash, ok := pageMap[pageName]
+					if !ok {
+						log.Debugf("Page %s has no .rm (un-annotated)", pageName)
+						continue
+					}
+					rmReader, err := ls.GetReader(hash)
+					if err != nil {
+						log.Errorf("Failed to get v6 page %d data: %v", i, err)
+						writer.CloseWithError(err)
+						return
+					}
+					rmData, err := io.ReadAll(rmReader)
+					rmReader.Close()
+					if err != nil {
+						log.Errorf("Failed to read v6 page %d data: %v", i, err)
+						writer.CloseWithError(err)
+						return
+					}
+					pages[i] = rmData
+					hasAnnotations = true
+				}
+			} else {
+				// No pages in content.json: fall back to doc.Files order
+				// (alphabetical, which reverses page order, so reverse it back).
+				// No background page mapping is possible in this fallback.
+				log.Warn("content.json has no pages array, using .rm files in reversed index order")
+				var tempHashes []string
+				for _, f := range doc.Files {
+					if filepath.Ext(f.EntryName) == storage.RmFileExt {
+						tempHashes = append(tempHashes, f.Hash)
+					}
+				}
+				for i := len(tempHashes) - 1; i >= 0; i-- {
+					rmReader, err := ls.GetReader(tempHashes[i])
+					if err != nil {
+						writer.CloseWithError(err)
+						return
+					}
+					rmData, err := io.ReadAll(rmReader)
+					rmReader.Close()
+					if err != nil {
+						writer.CloseWithError(err)
+						return
+					}
+					pages = append(pages, rmData)
+					hasAnnotations = true
+				}
+			}
+
+			if !hasAnnotations {
+				log.Error("No pages found in v6 document")
+				log.Debugf("Doc files: %+v", doc.Files)
+				writer.CloseWithError(fmt.Errorf("no pages found"))
+				return
+			}
+
+			log.Infof("Exporting %d v6 pages (background=%t)", len(pages), bgHash != "")
+
+			if bgHash != "" {
+				// Annotated imported PDF: overlay annotations onto the original.
+				bgReader, err := ls.GetReader(bgHash)
+				if err != nil {
+					log.Errorf("Failed to get background PDF: %v", err)
+					writer.CloseWithError(err)
+					return
+				}
+				defer bgReader.Close()
+				if err = exporter.ExportV6MultiPageOverBackground(pages, bgReader, writer); err != nil {
+					log.Errorf("Failed to overlay v6 annotations onto background: %v", err)
+					writer.CloseWithError(err)
+					return
+				}
+			} else {
+				// Pure notebook: render annotations only (drop un-annotated gaps).
+				dense := make([][]byte, 0, len(pages))
+				for _, p := range pages {
+					if len(p) > 0 {
+						dense = append(dense, p)
+					}
+				}
+				if err = exporter.ExportV6MultiPageToPdfNative(dense, writer); err != nil {
+					log.Errorf("Failed to export v6 multipage with rmc-go: %v", err)
+					writer.CloseWithError(err)
+					return
+				}
+			}
+		}()
+	} else {
+		// Use existing v5 rendering
+		log.Debugf("Using Cairo PDF renderer for v5 format blob doc %s", docid)
+
+		archive, err := models.ArchiveFromHashDoc(doc, ls)
+		if err != nil {
+			log.Error("Failed to load v5 archive:", err)
+			return nil, err
+		}
+
+		go func() {
+			err = exporter.RenderPDF(archive, writer)
+			if err != nil {
+				log.Error(err)
+				writer.Close()
+				return
+			}
+			writer.Close()
+		}()
+	}
+
 	return reader, err
 }
 
@@ -646,7 +831,8 @@ func (fs *FileSystemStorage) LoadBlob(uid, blobid string) (reader io.ReadCloser,
 	log.Debugln("Fullpath:", blobPath)
 	if blobid == rootBlob {
 		historyPath := path.Join(fs.getUserBlobPath(uid), historyFile)
-		lock, err := fslock.Lock(historyPath)
+		lock := fslock.New(historyPath)
+		err := lock.LockWithTimeout(time.Duration(time.Second * 5))
 		if err != nil {
 			log.Error("cannot obtain lock")
 			return nil, 0, 0, "", err
@@ -691,11 +877,10 @@ func (fs *FileSystemStorage) StoreBlob(uid, id string, stream io.Reader, lastGen
 	reader := stream
 	if id == rootBlob {
 		historyPath := path.Join(fs.getUserBlobPath(uid), historyFile)
-		var lock fslock.Handle
-		lock, err = fslock.Lock(historyPath)
+		lock := fslock.New(historyPath)
+		err = lock.LockWithTimeout(time.Duration(time.Second * 5))
 		if err != nil {
 			log.Error("cannot obtain lock")
-			return 0, err
 		}
 		defer lock.Unlock()
 

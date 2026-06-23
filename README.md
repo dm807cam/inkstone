@@ -1,8 +1,14 @@
-# rmfakecloud
+# Inkstone
 
-This is a replacement of the cloud, in case you want to sync/backup your files and have full control of the hosting environment.
+**Inkstone** is a self-hosted reMarkable sync cloud — a maintained fork of
+[rmfakecloud](https://github.com/ddvk/rmfakecloud) focused on first-class
+support for the **v6 file format (Paper Pro, software 3.x)** with native,
+in-process PDF rendering via Cairo (no `unipdf`/`rmapi` dependencies).
 
-See the [project documentation](https://ddvk.github.io/rmfakecloud/) for setup and configuration.
+Use it to sync/backup your files and keep full control of the hosting
+environment.
+
+See the [project documentation](https://dm807cam.github.io/rmfakecloud/) for setup and configuration.
 
 ## Supported Devices
 
@@ -41,7 +47,8 @@ See the [documentation](https://ddvk.github.io/rmfakecloud/remarkable/setup/) fo
 | Messaging integration to Slack | 🟡 | Not directly, use a webhook with zapier/make/n8n |
 | Archive document to cloud | 🟡 | It works but the information is not saved |
 | [Passcode (PIN) reset](https://ddvk.github.io/rmfakecloud/usage/passcode-reset/) | ✅ | reMarkable 1 / reMarkable 2 only |
-| Document rendering in web interface | ❌ | [WIP](https://github.com/ddvk/rmfakecloud/issues/255) |
+| Document rendering in web interface | ✅ |  |
+| v6 file format support (software 3.0+) | ✅ | Native in-process rendering with rmc-go |
 
 
 ## Breaking Changes
@@ -51,6 +58,57 @@ See the [documentation](https://ddvk.github.io/rmfakecloud/remarkable/setup/) fo
 - with v0.0.5 the new diff sync15 is added as an option, in order to use it modify the user with `setuser -u user -s`
   or modify the profile and add `sync15:true`
   a full resync will be needed (the tablet will do it), the old files are kept as they were and everything is put in a new directory
+
+## v6 File Format Support
+
+rmfakecloud natively supports v6 file format (introduced in reMarkable software 3.0+) for PDF export via the web UI.
+
+### How It Works
+
+- **v5 files** (software < 3.0): Rendered using built-in rmapi library
+- **v6 files** (software >= 3.0): Rendered natively using integrated rmc-go library with Cairo
+
+### Requirements
+
+**Docker (recommended)**: All dependencies included automatically.
+
+**Manual installation**:
+- Cairo development libraries for building:
+  - macOS: `brew install cairo pkg-config`
+  - Ubuntu/Debian: `apt-get install libcairo2-dev pkg-config`
+  - Fedora: `dnf install cairo-devel`
+- Cairo runtime library for running (installed automatically on most systems)
+
+### Building
+
+```bash
+# Build with native v6 support (Cairo)
+make build-cairo
+
+# Or for standard build
+make build
+```
+
+### Docker Usage
+
+The Docker image includes native v6 support:
+
+```bash
+docker run -d -p 3000:3000 \
+  -v $PWD/data:/data \
+  ghcr.io/dm807cam/inkstone:latest
+```
+
+### Performance
+
+- **v6 rendering**: ~100-500ms per page (in-process, no external dependencies)
+- **v5 rendering**: Similar performance with rmapi
+- **Caching**: Results cached for faster subsequent access
+
+### Known Limitations
+
+- Multi-page v6 documents: Fully supported
+- Text rendering: Fully supported
 
 ## Development
 

@@ -39,7 +39,10 @@ func (fs *FileSystemStorage) GetAllMetadata(uid string) (result []*messages.RawM
 
 // GetMetadata loads a document's metadata
 func (fs *FileSystemStorage) GetMetadata(uid, id string) (*messages.RawMetadata, error) {
-	fullPath := fs.getPathFromUser(uid, id+storage.MetadataFileExt)
+	fullPath, err := fs.getPathFromUser(uid, id+storage.MetadataFileExt)
+	if err != nil {
+		return nil, err
+	}
 	f, err := os.Open(fullPath)
 	if err != nil {
 		return nil, err
@@ -62,12 +65,15 @@ func (fs *FileSystemStorage) GetMetadata(uid, id string) (*messages.RawMetadata,
 
 // UpdateMetadata updates the metadata of a document
 func (fs *FileSystemStorage) UpdateMetadata(uid string, r *messages.RawMetadata) error {
-	filepath := fs.getPathFromUser(uid, r.ID+storage.MetadataFileExt)
+	filePath, err := fs.getPathFromUser(uid, r.ID+storage.MetadataFileExt)
+	if err != nil {
+		return err
+	}
 
 	js, err := json.Marshal(r)
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(filepath, js, 0600)
+	err = os.WriteFile(filePath, js, 0600)
 	return err
 }
