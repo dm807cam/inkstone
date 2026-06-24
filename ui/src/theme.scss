@@ -1,13 +1,34 @@
-// Refreshed dark palette: softer slate surfaces and cleaner neutral text,
-// keeping the reMarkable orange accent. Tune these to taste.
-$background1: #1c1f26; // surfaces: nav, cards, inputs
-$background2: #14161b; // page background
+// ============================================================
+// Inkstone design tokens — SCSS aliases
+//
+// This file emits NO CSS on its own. It only maps legacy SCSS
+// variable names onto the runtime CSS custom properties defined in
+// App.scss. Those custom properties switch automatically between
+// light and dark via the [data-bs-theme] attribute, so any
+// *.module.scss that references these SCSS names becomes
+// theme-reactive for free.
+//
+// To REBRAND the app, edit the token VALUES in App.scss
+// (search for "BRAND TOKENS") — not this file.
+// ============================================================
 
-$foreground1: #f5f6f8; // primary text
-$foreground2: #c7ccd6; // muted text / borders
-$foreground3: #e4dbaf; // warm highlight
+// Surfaces
+$background1: var(--surface-1); // raised surfaces: nav, cards, inputs
+$background2: var(--surface-2); // page background
+$surface3: var(--surface-3); // sunken fills / hover
 
-$action-rgb: 238, 123, 48;
-$action: #ee7b30; // accent
-$accept: #2ecc71;
-$reject: #ff5252;
+// Text
+$foreground1: var(--text-1); // primary text
+$foreground2: var(--text-2); // muted text
+$foreground3: var(--text-3); // warm highlight
+
+// Lines
+$line: var(--line);
+
+// Accent + semantic
+$action: var(--brand-accent);
+$accept: var(--accept);
+$reject: var(--reject);
+
+// Interaction
+$hover-overlay: var(--hover-overlay);

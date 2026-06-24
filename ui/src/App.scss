@@ -1,84 +1,92 @@
+// SCSS aliases (emits nothing) — maps legacy $names to runtime CSS vars.
 @import "./theme.scss";
 
-// TODO: Remove styles which are not meant to be global into module files
+// ------------------------------------------------------------------
+// Bootstrap compile-time overrides (must precede the import)
+// Keep $primary in sync with --brand-accent below.
+// ------------------------------------------------------------------
+$primary: #3a6ea5;
+$enable-shadows: false;
+$enable-validation-icons: false;
 
+@import "bootstrap/scss/bootstrap";
+
+// ==================================================================
+// BRAND TOKENS  — edit these to rebrand Inkstone.
+//
+// Defaults below are the LIGHT (paper & ink) theme. The
+// [data-bs-theme="dark"] block further down overrides the surface and
+// text tokens for dark mode. The single accent is shared by both.
+// ==================================================================
 :root {
-    height:100%;
-    // Modern system font stack + slightly larger radius for a fresher look.
+    // --- Brand accent (one-line rebrand) ---
+    --brand-accent: #3a6ea5; // calm ink-blue
+    --brand-accent-hover: #325d8a;
+    --brand-accent-rgb: 58, 110, 165;
+    --on-accent: #ffffff;
+
+    // --- Semantic ---
+    --accept: #2f9e63;
+    --reject: #d64545;
+
+    // --- Light surfaces & text (default) ---
+    --surface-1: #ffffff; // raised: nav, cards, inputs
+    --surface-2: #faf8f3; // page (warm paper)
+    --surface-3: #f1ede4; // sunken fills / hover
+    --text-1: #1c1b19; // primary text
+    --text-2: #5f5d57; // muted text
+    --text-3: #8a8578; // warm highlight
+    --line: #e7e1d5; // borders / dividers
+    --hover-overlay: rgba(0, 0, 0, 0.05);
+
+    // --- Shape & chrome ---
+    --bs-border-radius: 0.625rem;
+    --bs-border-radius-sm: 0.4rem;
+    --bs-border-radius-lg: 0.9rem;
+    --nav-height: 3.5rem;
+
+    // --- Typography ---
     --bs-font-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --bs-body-font-family: var(--bs-font-sans-serif);
-    --bs-border-radius: 0.5rem;
-    --bs-border-radius-sm: 0.35rem;
-    --bs-border-radius-lg: 0.75rem;
-    --bs-code-color: #{$action} !important;
-    --bs-body-bg: #{$background1} !important;
-    --bs-border-color: #{$foreground2} !important;
-    --bs-tertiary-bg: #{$background1} !important;
 
-    .dropdown-item {
-        --bs-dropdown-link-hover-bg: #{$background2};
-        --bs-dropdown-link-active-bg: #{$action};
-    }
-
-    .btn-outline-secondary {
-        --bs-btn-color: #{$foreground2};
-        --bs-btn-border-color: #{$foreground2};
-    }
-
-    .btn-primary {
-        --bs-btn-bg: #{$foreground2};
-        --bs-btn-color: #{$background1};
-        --bs-btn-border-color: #{$foreground2};
-
-        --bs-btn-hover-bg: #{$action};
-        --bs-btn-hover-color: #{$foreground2};
-        --bs-btn-hover-border-color: #{$action};
-
-        --bs-btn-active-bg: #{$action};
-        --bs-btn-active-color: #{$background2};
-        --bs-btn-active-border-color: #{$action};
-
-        --bs-btn-active-shadow: none;
-        --bs-btn-focus-shadow-rgb: none; // #{$action-rgb};
-    }
-
-    .btn-danger {
-        --bs-btn-bg: #{$reject};
-        --bs-btn-color: #{$foreground2};
-        --bs-btn-border-color: #{$reject};
-
-        --bs-btn-hover-bg: #{$reject};
-        --bs-btn-hover-color: #{$foreground2};
-        --bs-btn-hover-border-color: #{$reject};
-
-        --bs-btn-active-bg: #{$reject};
-        --bs-btn-active-color: #{$background2};
-        --bs-btn-active-border-color: #{$reject};
-
-        --bs-btn-active-shadow: none;
-        --bs-btn-focus-shadow-rgb: none; // #{$action-rgb};
-
-        &:hover, &:focus {
-            opacity: 0.7;
-        }
-    }
+    // --- Map brand tokens onto Bootstrap (light) ---
+    --bs-body-bg: var(--surface-2);
+    --bs-body-color: var(--text-1);
+    --bs-emphasis-color: var(--text-1);
+    --bs-secondary-color: var(--text-2);
+    --bs-tertiary-bg: var(--surface-3);
+    --bs-secondary-bg: var(--surface-3);
+    --bs-border-color: var(--line);
+    --bs-link-color: var(--brand-accent);
+    --bs-link-hover-color: var(--brand-accent-hover);
+    --bs-code-color: var(--brand-accent);
 }
 
-.form-control:focus {
-    border-color: $action !important;
-    box-shadow: none !important; // 0 0 0 0.25rem rgba(var(--bs-btn-focus-shadow-rgb), 10%) !important;
+// --- Dark (ink & paper) ---
+[data-bs-theme="dark"] {
+    --surface-1: #1c1f26;
+    --surface-2: #141619;
+    --surface-3: #262a33;
+    --text-1: #ece8df;
+    --text-2: #b6bac3;
+    --text-3: #e4dbaf;
+    --line: #2c313c;
+    --hover-overlay: rgba(255, 255, 255, 0.07);
+
+    --bs-body-bg: var(--surface-2);
+    --bs-body-color: var(--text-1);
+    --bs-emphasis-color: var(--text-1);
+    --bs-secondary-color: var(--text-2);
+    --bs-tertiary-bg: var(--surface-3);
+    --bs-secondary-bg: var(--surface-3);
+    --bs-border-color: var(--line);
 }
 
-.card input {
-    margin-bottom: 0.5em;
-}
-
-#root > nav { 
-    backdrop-filter: blur(12px);
-    background-color: $background1;
-}
-
-html, body {
+// ==================================================================
+// App shell
+// ==================================================================
+html,
+body {
     height: 100%;
     overflow: hidden;
     background-color: $background2;
@@ -90,195 +98,257 @@ html, body {
     height: 100%;
 }
 
+// Fixed-height app shell with safe-area awareness for mobile.
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+// Standard page padding that scales down on small screens (replaces the
+// old global .container-fluid margin hack that broke mobile).
+.page {
+    height: 100%;
+    overflow: auto;
+    padding: 1.5rem clamp(0.9rem, 4vw, 2.5rem);
+    -webkit-overflow-scrolling: touch;
+}
+
+.page-narrow {
+    max-width: 72ch;
+    margin-inline: auto;
+}
+
+// ==================================================================
+// Navbar
+// ==================================================================
+.app-navbar {
+    background-color: color-mix(in srgb, var(--surface-1) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+    min-height: var(--nav-height);
+}
+
+.app-navbar .navbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    color: var(--text-1);
+}
+
+.app-navbar .nav-link {
+    font-weight: 500;
+    color: var(--text-2);
+    &:hover { color: var(--text-1); }
+    &.active { color: var(--brand-accent); }
+}
+
+// ==================================================================
+// Buttons & controls
+// ==================================================================
+// Ghost button (react-bootstrap variant="outline" → class .btn-outline,
+// which isn't a real Bootstrap variant). Make it an intentional ghost.
+.btn-outline {
+    --bs-btn-color: var(--text-2);
+    --bs-btn-border-color: transparent;
+    --bs-btn-bg: transparent;
+    --bs-btn-hover-color: var(--text-1);
+    --bs-btn-hover-bg: var(--hover-overlay);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-active-color: var(--brand-accent);
+    --bs-btn-active-bg: var(--hover-overlay);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-focus-shadow-rgb: var(--brand-accent-rgb);
+}
+
+.btn-danger {
+    --bs-btn-bg: var(--reject);
+    --bs-btn-border-color: var(--reject);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--reject) 85%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--reject) 85%, black);
+    --bs-btn-active-bg: color-mix(in srgb, var(--reject) 75%, black);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--brand-accent);
+    box-shadow: 0 0 0 0.2rem rgba(var(--brand-accent-rgb), 0.18);
+}
+
 *:disabled {
-    color: $foreground2 !important;
-    background-color: $background2 !important;
-
-    opacity: 0.7 !important;
+    opacity: 0.6 !important;
 }
 
-div[role="button"] > p {
-    margin: 1em;
-}
+.flex-spacer { flex: 1; }
 
-.vstack {
-    gap: 2em;
-}
-
-canvas {
-  margin: auto;
-  width: auto !important;
-  height: auto !important;
-  max-width: 100%;
-  max-height: calc(100vh - 230px);
-}
+main h2 { padding: 0.5em 0; }
 
 code {
-    padding: 0.5em;
-    background-color: $background1;
+    padding: 0.15em 0.4em;
+    border-radius: var(--bs-border-radius-sm);
+    background-color: var(--surface-3);
 }
 
-@media (max-width: 768px) {
-  .documents-tree {
-    max-height: 25vh !important;
-  }
-}
-
-.container-fluid {
-  box-sizing: border-box;
-  margin: 0 50px;
-  max-width: none;
-  width: calc(100vw - 100px) !important;
-}
-
+// ==================================================================
+// Document tree (react-arborist)
+// ==================================================================
 .documents-tree {
-  div[role=treeitem] {
-    outline: none;
+    div[role="treeitem"] {
+        outline: none;
+        border-radius: var(--bs-border-radius-sm);
 
-    & > div {
-      display: flex;
-      align-items: center;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    &:hover {
-      background-color: rgba(255, 255, 255, .1);
-      cursor: pointer;
-    }
-
-    .treeitem-nodename {
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
-      &.is-folder {
-        font-weight: bold;
-      }
-    }
-
-  }
-}
-
-.filelist {
-  gap: 0 !important;
-
-  .filelist-header {
-    display: flex;
-    align-items: center;
-    padding: 0.5em 0.8em;
-    background-color: $background2;
-    border-bottom: 2px solid $foreground1;
-    font-weight: bold;
-    font-size: 0.9em;
-    color: $foreground1;
-
-    .filelist-header-cell {
-      display: flex;
-      align-items: center;
-      user-select: none;
-
-      &.sortable {
-        cursor: pointer;
+        & > div {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            padding-inline: 0.35rem;
+        }
 
         &:hover {
-          color: $action;
+            background-color: var(--hover-overlay);
+            cursor: pointer;
         }
-      }
 
-      .sort-indicator {
-        margin-left: 0.3em;
-        font-size: 0.9em;
-      }
+        .treeitem-nodename {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            margin-left: 0.4rem;
+            &.is-folder { font-weight: 600; }
+        }
     }
-  }
+}
 
-  .filelist-item {
-    &:hover {
-      background-color: rgba(255, 255, 255, .1);
-      border-bottom: 1px solid $background2;
-      cursor: pointer;
+// ==================================================================
+// File list (table-style rows)
+// ==================================================================
+.filelist {
+    gap: 0 !important;
+
+    .filelist-header {
+        display: flex;
+        align-items: center;
+        padding: 0.5em 0.8em;
+        border-bottom: 1px solid var(--line);
+        font-weight: 600;
+        font-size: 0.85em;
+        color: var(--text-2);
+
+        .filelist-header-cell {
+            display: flex;
+            align-items: center;
+            user-select: none;
+
+            &.sortable {
+                cursor: pointer;
+                &:hover { color: var(--brand-accent); }
+            }
+
+            .sort-indicator {
+                margin-left: 0.3em;
+                font-size: 0.9em;
+                opacity: 0.7;
+            }
+        }
     }
 
-    .is-folder {
-      font-weight: bold;
+    .filelist-item {
+        border-radius: var(--bs-border-radius-sm);
+
+        &:hover {
+            background-color: var(--hover-overlay);
+            cursor: pointer;
+        }
+
+        .is-folder { font-weight: 600; }
+
+        .filelist-metadata {
+            color: var(--text-2);
+            font-size: 0.8em;
+            padding: 0 0.5em;
+        }
+
+        .filelist-checkbox { margin-right: 0.8em; }
+    }
+}
+
+// ==================================================================
+// File grid
+// ==================================================================
+.filegrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 40vw, 160px), 1fr));
+    grid-gap: 0.85em;
+
+    .filegrid-file-item,
+    .filegrid-folder-item {
+        display: inline-grid;
+        padding: 0.6em 0.5em;
+        border-radius: var(--bs-border-radius);
+
+        &:hover {
+            background-color: var(--hover-overlay);
+            cursor: pointer;
+        }
+
+        .filegrid-metadata {
+            font-weight: normal;
+            color: var(--text-2);
+            font-size: 0.8em;
+        }
     }
 
-    .filelist-metadata {
-      color: $foreground2;
-      font-size: 0.8em;
-      padding:  0 0.5em;
+    .filegrid-file-item {
+        .fileicon {
+            padding: 0.5rem;
+            svg {
+                height: 72px;
+                width: 100%;
+            }
+        }
+        .filename {
+            display: block;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            width: 100%;
+            font-size: 0.82rem;
+        }
+    }
+
+    .filegrid-folder-item {
+        font-weight: 600;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 
     .filelist-checkbox {
-      margin-right: 0.8em;
+        position: absolute;
+        margin: 0.4em;
     }
-  }
+
+    .filegrid-checkbox-spacer { margin-left: 2.4em; }
 }
 
-.filegrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  grid-gap: 1em;
-
-  .filegrid-file-item,
-  .filegrid-folder-item {
-    display: inline-grid;
-    padding: 0.5em;
-
-    &:hover {
-      background-color: rgba(255, 255, 255, .1);
-      cursor: pointer;
-    }
-
-    .filegrid-metadata {
-      font-weight: normal;
-      color: $foreground2;
-      font-size: 0.8em;
-    }
-  }
-
-  .filegrid-file-item {
-    .fileicon {
-      padding: 0.5rem;
-      svg {
-        height: 80px;
-        width: 100%;
-      }
-    }
-    .filename {
-      display: block;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      width: 100%;
-      font-size: 0.8rem;
-    }
-  }
-
-  .filegrid-folder-item {
-    font-weight: bold;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .filelist-checkbox {
-    position: absolute;
-    margin: 0.4em;
-  }
-
-  .filegrid-checkbox-spacer {
-    margin-left: 2.4em;
-  }
+// Larger tap targets on touch / small screens.
+@media (max-width: 575.98px) {
+    .filelist .filelist-item { padding-block: 0.65rem !important; }
 }
 
-main h2 {
-    padding: 0.5em 0;
-}
-
-@import "bootstrap/scss/bootstrap";
-
-.flex-spacer {
-  flex: 1;
+.transparent-modal .modal-content {
+    background-color: transparent;
 }

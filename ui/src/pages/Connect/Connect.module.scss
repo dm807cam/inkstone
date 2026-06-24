@@ -1,0 +1,31 @@
+@import "../../theme.scss";
+
+.wrap {
+  max-width: 480px;
+  margin-inline: auto;
+  text-align: center;
+  padding-top: clamp(1rem, 6vh, 4rem);
+}
+
+.codeCard {
+  background-color: $background1;
+  border: 1px solid $line;
+  border-radius: var(--bs-border-radius-lg);
+  padding: clamp(1.25rem, 5vw, 2.25rem);
+  margin-bottom: 1.5rem;
+}
+
+.code {
+  font-size: clamp(2rem, 12vw, 3.25rem);
+  font-weight: 600;
+  letter-spacing: clamp(0.3rem, 3vw, 0.75rem);
+  font-variant-numeric: tabular-nums;
+  color: $foreground1;
+  word-break: break-all;
+  min-height: 1.2em;
+}
+
+.codePlaceholder {
+  color: $foreground2;
+  opacity: 0.5;
+}

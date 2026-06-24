@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Container, Alert, Spinner, Button } from "react-bootstrap";
+import { Alert, Spinner, Button } from "react-bootstrap";
 import { BsGearFill, BsFullscreenExit, BsArrowCounterclockwise, BsArrowClockwise } from "react-icons/bs";
 import pako from "pako";
 import constants from "../../common/constants";
@@ -479,7 +479,7 @@ export default function ScreenShare() {
 
 
   return (
-    <Container className="mt-4">
+    <div className="page">
       {status === STATUS.ERROR && (
         <Alert variant="info">
           {errorMsg}
@@ -680,6 +680,6 @@ export default function ScreenShare() {
           );
         })()}
       </div>
-    </Container>
+    </div>
   );
 }

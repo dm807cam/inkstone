@@ -99,29 +99,34 @@ export default function UserList() {
 
   return (
     <>
-      <h3>Users</h3>
-      <Table striped bordered hover>
+      <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h3 className="mb-0">Users</h3>
+        <Button onClick={newUser}>New User</Button>
+      </div>
+      <Table responsive hover className="align-middle">
         <thead>
           <tr>
-            <th>#</th>
+            <th className="d-none d-sm-table-cell">#</th>
             <th>UserId</th>
-            <th>Email</th>
-            <th>Name</th>
+            <th className="d-none d-md-table-cell">Email</th>
+            <th className="d-none d-lg-table-cell">Name</th>
             <th>Role</th>
-            <th>Created At</th>
-            <th><Button onClick={newUser}>New User</Button></th>
+            <th className="d-none d-lg-table-cell">Created At</th>
+            <th className="text-end">Actions</th>
           </tr>
         </thead>
         <tbody>
           {userList.map((x, index) => (
             <tr key={x.userid} onClick={() => openModal(index)} style={{ cursor: "pointer" }}>
-              <td>{index}</td>
+              <td className="d-none d-sm-table-cell">{index}</td>
               <td>{x.userid}</td>
-              <td>{x.email}</td>
-              <td>{x.Name}</td>
+              <td className="d-none d-md-table-cell">{x.email}</td>
+              <td className="d-none d-lg-table-cell">{x.Name}</td>
               <td>{x.isAdmin && "admin"}</td>
-              <td>{formatDate(x.CreatedAt)}</td>
-              <td><Button variant="danger" onClick={(e) => remove(e,x.userid)}>Delete</Button></td>
+              <td className="d-none d-lg-table-cell">{formatDate(x.CreatedAt)}</td>
+              <td className="text-end">
+                <Button size="sm" variant="danger" onClick={(e) => remove(e, x.userid)}>Delete</Button>
+              </td>
             </tr>
           ))}
         </tbody>

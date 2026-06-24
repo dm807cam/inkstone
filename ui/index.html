@@ -1,9 +1,35 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>rmfakecloud</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <meta name="description" content="Inkstone — your self-hosted reMarkable cloud" />
+    <title>Inkstone</title>
+    <script>
+      // Resolve the saved theme before first paint to avoid a flash of the
+      // wrong color mode. Mirrors the logic in common/useTheme.jsx.
+      (function () {
+        try {
+          var saved = localStorage.getItem("inkstone-theme") || "system";
+          var dark =
+            saved === "dark" ||
+            (saved === "system" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute(
+            "data-bs-theme",
+            dark ? "dark" : "light"
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-bs-theme", "light");
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

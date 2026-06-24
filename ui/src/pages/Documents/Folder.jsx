@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Navbar from 'react-bootstrap/Navbar';
 import { Button, InputGroup, Form } from "react-bootstrap";
 import Modal from 'react-bootstrap/Modal';
 import { BsFillGridFill } from "react-icons/bs";
@@ -64,15 +63,15 @@ export default function Folder({ selection, onSelect, onUpdate }) {
   }
   return (
     <>
-      <Navbar style={{ marginLeft: '-12px' }}>
-        { folder && (<div><NameTag node={folder} onSelect={onSelect} /></div>) }
-      </Navbar>
+      <div className={styles.breadcrumbBar}>
+        { folder && <NameTag node={folder} onSelect={onSelect} /> }
+      </div>
 
-      <Navbar className={styles.filedivider}>
+      <div className={`${styles.toolbar} ${styles.filedivider}`}>
         <Button size="sm" variant="outline" onClick={() => setShowCreateFolder(true)}>Create Folder</Button>
         <div className={styles.stretch}></div>
-        <Button size="sm" onClick={onDeleteClick} disabled={selectedIds.length === 0}>Delete</Button>
-        <ToggleButtonGroup value={listStyle} onChange={(v) => setListStyle(v)} name="abc">
+        <Button size="sm" variant="danger" onClick={onDeleteClick} disabled={selectedIds.length === 0}>Delete</Button>
+        <ToggleButtonGroup value={listStyle} onChange={(v) => setListStyle(v)} name="listStyle">
           <ToggleButton id="grid" name="grid" size="sm" value="grid" variant="outline">
             <BsFillGridFill />
           </ToggleButton>
@@ -80,7 +79,7 @@ export default function Folder({ selection, onSelect, onUpdate }) {
             <FaList />
           </ToggleButton>
         </ToggleButtonGroup>
-      </Navbar>
+      </div>
 
       <Upload filesUploaded={fileUploaded} uploadFolder={selection.id}></Upload>
       <FileList

@@ -1,7 +1,7 @@
 import React, {useState} from "react";
 import useFetch from "../../hooks/useFetch";
 import Spinner from "../../components/Spinner";
-import {Alert, Button, Card, Container, Modal, Table} from "react-bootstrap";
+import {Alert, Button, Card, Modal, Table} from "react-bootstrap";
 import IntegrationModal from "./IntegrationModal";
 import NewIntegrationModal from "./NewIntegrationModal";
 import apiService from "../../services/api.service";
@@ -73,32 +73,38 @@ const Integrations = () => {
   }
 
   return (
-    <Container>
-      <h3>Integrations</h3>
-      <Card>
-        <Table striped bordered hover className="mb-0">
+    <div className="page">
+      <div style={{ maxWidth: "1100px", marginInline: "auto" }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <h3 className="mb-0">Integrations</h3>
+          <Button onClick={newIntegration}>New Integration</Button>
+        </div>
+        <Card>
+        <Table responsive hover className="mb-0 align-middle">
           <thead>
             <tr>
-              <th>#</th>
-              <th>IntegrationId</th>
+              <th className="d-none d-sm-table-cell">#</th>
+              <th className="d-none d-md-table-cell">IntegrationId</th>
               <th>Name</th>
               <th>Provider</th>
-              <th><Button onClick={newIntegration}>New Integration</Button></th>
+              <th className="text-end">Actions</th>
             </tr>
           </thead>
           <tbody>
             {!integrationList.length && (
               <tr>
-                <td colSpan={5} className="text-center">No integration</td>
+                <td colSpan={5} className="text-center text-secondary">No integrations yet</td>
               </tr>
             )}
             {integrationList.map((i, index) => (
               <tr key={i.ID} onClick={() => openModal(index)} style={{ cursor: "pointer" }}>
-                <td>{index}</td>
-                <td>{i.ID}</td>
+                <td className="d-none d-sm-table-cell">{index}</td>
+                <td className="d-none d-md-table-cell">{i.ID}</td>
                 <td>{i.Name}</td>
                 <td>{i.Provider}</td>
-                <td><Button variant="danger" onClick={(e) => remove(e,i.ID,i.Name)}>Delete</Button></td>
+                <td className="text-end">
+                  <Button size="sm" variant="danger" onClick={(e) => remove(e, i.ID, i.Name)}>Delete</Button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -109,8 +115,9 @@ const Integrations = () => {
         <Modal show={state.showModal === NewIntegration} onHide={closeModal} className="transparent-modal">
           <NewIntegrationModal onSave={onSave} onClose={closeModal} />
         </Modal>
-      </Card>
-    </Container>
+        </Card>
+      </div>
+    </div>
   );
 };
 

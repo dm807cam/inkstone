@@ -1,15 +1,13 @@
-import Container from "react-bootstrap/Container";
-import Stack from "react-bootstrap/Stack";
 import UserList from "./UserList";
 
-const Home = () => {
+const Admin = () => {
   return (
-    <Container fluid>
-      <Stack>
-          <UserList />
-      </Stack>
-    </Container>
+    <div className="page">
+      <div style={{ maxWidth: "1100px", marginInline: "auto" }}>
+        <UserList />
+      </div>
+    </div>
   );
 };
 
-export default Home;
+export default Admin;

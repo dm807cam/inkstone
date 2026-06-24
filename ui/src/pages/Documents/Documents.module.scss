@@ -1,29 +1,113 @@
 @import "../../theme.scss";
 
-.treeContainer {
+// ============================================================
+// Layout — desktop two-pane master/detail
+// ============================================================
+// Doubled / nested selectors raise specificity above Bootstrap's own
+// .row and .col-* rules (which otherwise reset the gutter padding/margins).
+.deskRow {
     height: 100%;
 
-    // Ensure the inner div also takes full height
+    &.deskRow {
+        margin: 0;
+        --bs-gutter-x: 0;
+    }
+
+    .sidebarCol {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+        padding: 1rem 0.75rem 1rem clamp(0.75rem, 2vw, 1.5rem);
+        border-right: 1px solid $line;
+    }
+
+    .contentCol {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+        padding: 1rem clamp(0.75rem, 3vw, 2rem);
+    }
+}
+
+.sidebarHeader {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    margin-bottom: 0.5rem;
+}
+
+.sidebarSearch {
+    flex-shrink: 0;
+    margin-bottom: 0.75rem;
+}
+
+// ============================================================
+// Layout — mobile / tablet single pane + drawer
+// ============================================================
+.mobileRoot {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.mobileBar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    padding: 0.6rem clamp(0.75rem, 4vw, 1.25rem);
+    border-bottom: 1px solid $line;
+}
+
+.mobileContent {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.75rem clamp(0.75rem, 4vw, 1.25rem) 1.25rem;
+}
+
+.treeDrawer {
+    max-width: 88vw;
+    width: 22rem !important;
+    background-color: $background2;
+}
+
+.treeDrawerBody {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: 0;
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: $foreground2;
+    font-size: 0.95rem;
+}
+
+// ============================================================
+// Document tree (react-arborist host)
+// ============================================================
+.treeContainer {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+
     > div {
         height: 100%;
     }
 
-    // Target the react-arborist tree div
     div[role="tree"] {
         height: 100%;
-    }
-}
-
-.base {
-    background-color: $background2;
-    transition: background 0.3s ease;
-
-    &.accept {
-        background-color: $accept;
-    }
-
-    &.reject {
-        background-color: $reject;
     }
 }
 
@@ -31,50 +115,83 @@
     color: $action;
 }
 
+// ============================================================
+// Folder toolbar helpers
+// ============================================================
 .stretch {
     display: flex;
-
     flex: 1 1 0;
 
     &.userid {
-        font-weight: bold;
+        font-weight: 600;
     }
+}
+
+.breadcrumbBar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.1rem;
+    padding: 0.25rem 0 0.5rem;
+    color: $foreground2;
+
+    svg {
+        flex-shrink: 0;
+        opacity: 0.5;
+        font-size: 0.7rem;
+    }
+
+    .btn {
+        padding: 0.15rem 0.45rem;
+    }
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0;
 }
 
 .filedivider {
-    border-bottom: 2px solid $foreground1;
+    border-bottom: 1px solid $line;
 }
 
+// ============================================================
+// Upload dropzone
+// ============================================================
 .upload {
     display: flex;
-
     flex: 1;
     align-items: center;
     flex-direction: column;
+    justify-content: center;
 
-    margin: 0;
-    padding: 20px;
-    border: 2px dashed;
-    border-top: none;
-    color: $foreground1;
+    margin: 0.75rem 0;
+    padding: 1.25rem;
+    border: 2px dashed $line;
+    border-radius: var(--bs-border-radius);
+    color: $foreground2;
     background-color: $background1;
 
     outline: none;
-    transition: border .24s ease-in-out;
+    cursor: pointer;
+    transition: border-color 0.24s ease-in-out, background-color 0.24s ease;
 
-    border-color: $foreground1;
-
-    &.uploadActive {
+    &:hover {
         border-color: $action;
     }
 
-    &.uploadAccept {
-        border-color: $accept;
+    p {
+        margin: 0;
+        text-align: center;
+        font-size: 0.9rem;
     }
 
-    &.uploadReject {
-        border-color: $reject;
-    }
+    &.uploadActive { border-color: $action; }
+    &.uploadAccept { border-color: $accept; }
+    &.uploadReject { border-color: $reject; }
 }
 
 .uploadWaiting {

@@ -30,6 +30,13 @@ export default function FileListViewer({ listStyle, files, onSelect, counter, se
     return "";
   }
 
+  // Hide bulky metadata columns on small screens so the name has room.
+  const responsiveColClass = (columnId) => {
+    if (columnId === "lastModified") return "d-none d-md-flex";
+    if (columnId === "metadata") return "d-none d-sm-flex";
+    return "";
+  };
+
   // Define columns for TanStack Table
   const columns = useMemo(
     () => [
@@ -178,7 +185,7 @@ export default function FileListViewer({ listStyle, files, onSelect, counter, se
                 {headerGroup.headers.map(header => (
                   <div
                     key={header.id}
-                    className={`filelist-header-cell ${header.column.getCanSort() ? 'sortable' : ''}`}
+                    className={`filelist-header-cell ${header.column.getCanSort() ? 'sortable' : ''} ${responsiveColClass(header.column.id)}`}
                     style={{
                       width: header.getSize() !== 150 ? `${header.getSize()}px` : 'auto',
                       flex: header.getSize() === 150 ? 1 : undefined,
@@ -214,9 +221,11 @@ export default function FileListViewer({ listStyle, files, onSelect, counter, se
                     {row.getVisibleCells().map(cell => (
                       <div
                         key={cell.id}
+                        className={responsiveColClass(cell.column.id)}
                         style={{
                           width: cell.column.getSize() !== 150 ? `${cell.column.getSize()}px` : 'auto',
                           flex: cell.column.getSize() === 150 ? 1 : undefined,
+                          alignItems: 'center',
                         }}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

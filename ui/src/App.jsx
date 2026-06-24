@@ -1,9 +1,10 @@
-import {useEffect} from "react";
+import { useEffect } from "react";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 
 import apiService from "./services/api.service";
 import { AuthProvider } from "./common/useAuthContext";
+import { ThemeProvider, useTheme } from "./common/useTheme";
 import Role from "./common/Role";
 import { PrivateRoute } from "./components/PrivateRoute";
 import Navigationbar from "./components/Navigation";
@@ -27,7 +28,12 @@ import { pdfjs } from "react-pdf";
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url,
-).toString(); 
+).toString();
+
+function ThemedToasts() {
+  const { resolved } = useTheme();
+  return <ToastContainer autoClose={2000} theme={resolved} position="bottom-right" />;
+}
 
 export default function App() {
 
@@ -36,13 +42,13 @@ export default function App() {
   }, [])
 
   return (
-    <>
+    <ThemeProvider>
       <AuthProvider>
         <Router>
-          <div style={{display: "flex", flexDirection: "column", height: "100%"}}>
+          <div className="app-shell">
             <Navigationbar />
             <PasscodeResets />
-            <div style={{flex: "1 1 auto", minHeight: 0, overflow: "hidden"}}>
+            <main className="app-main">
               <Switch>
                 <PrivateRoute exact path="/" component={Home} />
                 <PrivateRoute path="/documents/:itemId?" component={Documents} />
@@ -57,11 +63,11 @@ export default function App() {
                 <Route path="/login" component={Login} />
                 <Route component={NoMatch} />
               </Switch>
-            </div>
+            </main>
           </div>
         </Router>
+        <ThemedToasts />
       </AuthProvider>
-      <ToastContainer autoClose={2000} />
-    </>
+    </ThemeProvider>
   );
 }

@@ -1,17 +1,16 @@
 import DocumentTree from "./Tree";
 import apiservice from "../../services/api.service"
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useHistory } from "react-router-dom";
-import { Container, Row, Col } from "react-bootstrap";
+import { Row, Col, Offcanvas } from "react-bootstrap";
 import File from "./File";
 import Folder from "./Folder";
-import Navbar from 'react-bootstrap/Navbar';
-import { BsSearch } from "react-icons/bs";
+import { BsSearch, BsChevronLeft, BsFolder2Open } from "react-icons/bs";
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import InputGroup from 'react-bootstrap/InputGroup';
 import { toast } from "react-toastify";
-import { useAuthState } from "../../common/useAuthContext";
+import useMediaQuery from "../../hooks/useMediaQuery";
 
 import styles from "./Documents.module.scss";
 
@@ -22,15 +21,36 @@ export default function DocumentList() {
   const [counter, setCounter] = useState(0);
   const [entries, setEntries] = useState([])
   const [initialSelectionSet, setInitialSelectionSet] = useState(false);
-  const [treeHeight, setTreeHeight] = useState(700);
+  const [treeHeight, setTreeHeight] = useState(500);
+  const [showTreeDrawer, setShowTreeDrawer] = useState(false);
 
   const { itemId } = useParams();
   const history = useHistory();
-  const { state: { user } } = useAuthState();
+
+  const isDesktop = useMediaQuery("(min-width: 992px)");
 
   const treeRef = useRef(null);
-  const treeContainerRef = useRef(null);
   const lastSelectedId = useRef(null);
+  const treeObserver = useRef(null);
+
+  // Callback ref: measure whichever tree container is currently mounted
+  // (desktop sidebar or mobile drawer) so react-arborist gets a real height.
+  const setTreeContainer = useCallback((node) => {
+    if (treeObserver.current) {
+      treeObserver.current.disconnect();
+      treeObserver.current = null;
+    }
+    if (node) {
+      const ro = new ResizeObserver((entries) => {
+        const h =
+          entries[0].contentBoxSize?.[0]?.blockSize ??
+          entries[0].contentRect.height;
+        if (h) setTreeHeight(h);
+      });
+      ro.observe(node);
+      treeObserver.current = ro;
+    }
+  }, []);
 
   useEffect(() => {
     lastSelectedId.current = selected?.id || null;
@@ -60,6 +80,7 @@ export default function DocumentList() {
   const onSelect = (node) => {
     setSelected(node);
     toggleNode(node);
+    setShowTreeDrawer(false);
 
     // Update URL with selected item ID
     if (node && node.id) {
@@ -69,6 +90,23 @@ export default function DocumentList() {
       } else {
         history.push(`/documents/${node.id}`);
       }
+    }
+  };
+
+  // Mobile: go back from a file reader to its parent folder.
+  const goBack = () => {
+    const parent = selected?.parent;
+    if (parent && parent.data) {
+      setSelected(parent);
+      if (parent.id === 'root' || parent.id === 'trash' || parent.id === '__REACT_ARBORIST_INTERNAL_ROOT__') {
+        history.push('/documents');
+      } else {
+        history.push(`/documents/${parent.id}`);
+      }
+    } else {
+      setSelected(null);
+      setInitialSelectionSet(false);
+      history.push('/documents');
     }
   };
 
@@ -90,20 +128,6 @@ export default function DocumentList() {
       setInitialSelectionSet(true);
     }
   }, [entries, selected, initialSelectionSet, itemId]);
-
-  useEffect(() => {
-    const resizeObserver = new ResizeObserver((event) => {
-      setTreeHeight(event[0].contentBoxSize[0].blockSize);
-    });
-
-    if (treeContainerRef.current) {
-      resizeObserver.observe(treeContainerRef.current);
-    }
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
 
 	useEffect(() => {
 		const loadDocs = async () => {
@@ -196,8 +220,6 @@ export default function DocumentList() {
     const { item: foundItem, parent: parentItem } = result;
 
     // Create a pseudo-node object that matches what onSelect expects
-    // React-arborist wraps the data, so the node has both top-level properties
-    // and a 'data' property containing the actual item
     const pseudoNode = {
       id: foundItem.id,
       data: foundItem,
@@ -217,7 +239,6 @@ export default function DocumentList() {
 
     // Try to open parent folders in the tree if possible
     if (treeRef.current && typeof treeRef.current.openParents === 'function') {
-      // Give tree a moment to render, then open parents
       setTimeout(() => {
         if (treeRef.current && typeof treeRef.current.openParents === 'function') {
           treeRef.current.openParents(itemId);
@@ -226,36 +247,82 @@ export default function DocumentList() {
     }
   }, [entries, itemId, initialSelectionSet]);
 
+  const isReading = selected && selected.isLeaf;
+
+  const searchBox = (
+    <InputGroup>
+      <InputGroup.Text><BsSearch /></InputGroup.Text>
+      <Form.Control
+        autoFocus
+        size="sm"
+        type="text"
+        placeholder="Search files…"
+        value={term}
+        onChange={(e) => setTerm(e.currentTarget.value)}
+      />
+    </InputGroup>
+  );
+
+  const tree = (
+    <div ref={setTreeContainer} className={styles.treeContainer}>
+      <DocumentTree selection={selected} onSelect={onSelect} treeRef={treeRef} term={term} entries={entries} height={treeHeight} />
+    </div>
+  );
+
+  const content = (
+    <>
+      {selected && selected.isLeaf && <File file={selected} onSelect={onSelect} />}
+      {selected && !selected.isLeaf && <Folder selection={selected} onSelect={onSelect} onUpdate={onUpdate} counter={counter} />}
+      {!selected && <div className={styles.emptyState}>Select a document to get started.</div>}
+    </>
+  );
+
+  // -------- Desktop: persistent two-pane master/detail --------
+  if (isDesktop) {
+    return (
+      <Row className={styles.deskRow}>
+        <Col lg={4} xl={3} className={styles.sidebarCol}>
+          <div className={styles.sidebarHeader}>
+            <Button variant="outline" size="sm" onClick={() => { setShowSearch(!showSearch); setTerm(""); }}>
+              <BsSearch />
+            </Button>
+          </div>
+          {showSearch && <div className={styles.sidebarSearch}>{searchBox}</div>}
+          {tree}
+        </Col>
+        <Col lg={8} xl={9} className={styles.contentCol}>
+          {content}
+        </Col>
+      </Row>
+    );
+  }
+
+  // -------- Mobile / tablet: single pane + folder drawer --------
   return (
-    <Container fluid style={{height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: "25px 0 20px 0"}}>
-        <Row style={{flex: "1 1 auto", minHeight: 0}}>
-          <Col md={4} style={{display: "flex", flexDirection: "column", height: "100%"}}>
-            <Navbar style={{flexShrink: 0}}>
-              <div className={`${styles.stretch} ${styles.userid}`}>{user.UserID}</div>
-              <Button variant="outline" onClick={() => { setShowSearch(!showSearch); setTerm("") }}><BsSearch/></Button>
-            </Navbar>
+    <div className={styles.mobileRoot}>
+      <div className={styles.mobileBar}>
+        {isReading ? (
+          <Button variant="outline" size="sm" onClick={goBack} className="d-inline-flex align-items-center gap-1">
+            <BsChevronLeft /> Back
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setShowTreeDrawer(true)} className="d-inline-flex align-items-center gap-1">
+            <BsFolder2Open /> Folders
+          </Button>
+        )}
+      </div>
 
-            {showSearch && <div style={{flexShrink: 0}}>
-              <InputGroup className="mb-3">
-                <InputGroup.Text>
-                  <BsSearch />
-                </InputGroup.Text>
+      <div className={styles.mobileContent}>{content}</div>
 
-                <Form.Control autoFocus size="sm" type="text" value={term} onChange={(e) => { setTerm(e.currentTarget.value); }} />
-              </InputGroup>
-            </div>}
-
-            <div ref={treeContainerRef} className={styles.treeContainer} style={{flex: "1 1 auto", minHeight: 0, overflow: "auto"}}>
-              <DocumentTree selection={selected} onSelect={onSelect} treeRef={treeRef} term={term} entries={entries} height={treeHeight} />
-            </div>
-          </Col>
-          <Col md={8} style={{display: "flex", flexDirection: "column", height: "100%"}}>
-            <div style={{flex: "1 1 auto", minHeight: 0, overflow: "auto"}}>
-              {selected && selected.isLeaf && <File file={selected} onSelect={onSelect} />}
-              {selected && !selected.isLeaf && <Folder selection={selected} onSelect={onSelect} onUpdate={onUpdate} counter={counter} />}
-            </div>
-          </Col>
-        </Row>
-    </Container>
+      <Offcanvas show={showTreeDrawer} onHide={() => setShowTreeDrawer(false)} placement="start" className={styles.treeDrawer}>
+        <Offcanvas.Header closeButton>
+          <Offcanvas.Title>Folders</Offcanvas.Title>
+        </Offcanvas.Header>
+        <Offcanvas.Body className={styles.treeDrawerBody}>
+          <div className={styles.sidebarSearch}>{searchBox}</div>
+          {tree}
+        </Offcanvas.Body>
+      </Offcanvas>
+    </div>
   );
 }

@@ -1,29 +1,49 @@
 @import "../../theme.scss";
 
 .container {
-  min-height: 85vh;
+  height: 100%;
   width: 100%;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow: auto;
 }
 
-.formContainer {
-  width: 300px;
+.card {
+  width: 100%;
+  max-width: 380px;
+  padding: 1.75rem 1.5rem;
+  background-color: $background1;
+  border: 1px solid $line;
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+  color: $foreground1;
+}
+
+.brandName {
+  font-size: 1.45rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.tagline {
+  color: $foreground2;
+  font-size: 0.88rem;
 }
 
 .error {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: $reject;
-}
-
-.loginForm {
-  display: flex;
-  flex-direction: column;
-}
-
-.loginFormItem {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 10px;
+  margin-bottom: 0.75rem;
+  text-align: center;
 }

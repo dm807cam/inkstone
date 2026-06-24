@@ -1,8 +1,9 @@
-import React, {useState, useLayoutEffect} from "react";
+import { useState, useLayoutEffect } from "react";
 import apiservice from "../../services/api.service"
-import Stack from 'react-bootstrap/Stack';
 import Button from 'react-bootstrap/Button';
 import { FaRepeat } from "react-icons/fa6";
+
+import styles from "./Connect.module.scss";
 
 export default function CodeGenerator() {
 
@@ -23,21 +24,32 @@ export default function CodeGenerator() {
   }, [])
 
   if (error) {
-    return <div>{error.message}</div>;
+    return (
+      <div className="page">
+        <div className="page-narrow text-center text-danger">{error.message}</div>
+      </div>
+    );
   }
 
   return (
-    <>
-      <Stack gap={5} style={{alignItems: 'center', marginTop: '15vh'}}>
-        <div className="p-2">
-          <Button onClick={newCode}>
-            <FaRepeat />
-          </Button>
+    <div className="page">
+      <div className={styles.wrap}>
+        <h3 className="mb-1">Connect a device</h3>
+        <p className="text-secondary mb-4">
+          On your reMarkable, choose to connect to the cloud and enter this
+          one-time code.
+        </p>
+
+        <div className={styles.codeCard}>
+          <div className={styles.code}>
+            {code ? code : <span className={styles.codePlaceholder}>······</span>}
+          </div>
         </div>
-        <div className="p-2">
-          <h1 style={{ letterSpacing: "10px" }}>{code}</h1>
-        </div>
-      </Stack>
-    </>
+
+        <Button onClick={newCode} variant="outline-secondary" className="d-inline-flex align-items-center gap-2">
+          <FaRepeat /> New code
+        </Button>
+      </div>
+    </div>
   );
 }
