@@ -8,10 +8,16 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/messages"
 	"github.com/ddvk/rmfakecloud/internal/model"
 )
+
+// webhookTimeout bounds the outbound webhook request so a slow or hung
+// endpoint cannot block the calling goroutine indefinitely. Mirrors the
+// 30s convention used by the ICS integration (see ics.go).
+const webhookTimeout = 30 * time.Second
 
 type Webhook struct {
 	Endpoint string
@@ -54,7 +60,8 @@ func (i *Webhook) SendMessage(data messages.IntegrationMessageData, img image.Im
 	}
 
 	// Do the request
-	resp, err := http.Post(i.Endpoint, writer.FormDataContentType(), body)
+	client := &http.Client{Timeout: webhookTimeout}
+	resp, err := client.Post(i.Endpoint, writer.FormDataContentType(), body)
 	if err != nil {
 		return "", err
 	}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/config"
 )
@@ -66,7 +67,9 @@ func (hwr *HWRClient) SendRequest(data []byte) (body []byte, err error) {
 	mac.Write(data)
 	result := hex.EncodeToString(mac.Sum(nil))
 
-	client := http.Client{}
+	// Bound the request so a slow or unreachable MyScript host cannot block
+	// the calling goroutine indefinitely (matches the ICS integration's 30s).
+	client := http.Client{Timeout: 30 * time.Second}
 
 	host := defaultHost
 	if hwr.Cfg.HWRHost != "" {
@@ -87,6 +90,7 @@ func (hwr *HWRClient) SendRequest(data []byte) (body []byte, err error) {
 	if err != nil {
 		return
 	}
+	defer res.Body.Close()
 	body, err = io.ReadAll(res.Body)
 	if err != nil {
 		return
