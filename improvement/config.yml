@@ -1,0 +1,67 @@
+# Continuous Improvement Loop — project configuration
+# This is the ONLY file you must edit per project. The skills are generic and read from here.
+# Everything below has safe defaults; change commands and thresholds to fit your stack.
+
+backlog:
+  label: auto-improve        # only issues with this label are treated as the loop's backlog
+  max_retries: 3             # after this many failed attempts, label the ticket `needs-human`
+
+budget:
+  max_iterations_per_run: 1  # increments per scheduled run (keep at 1 for easy review)
+  max_diff_lines: 150        # reject a change whose diff exceeds this (one small increment)
+  max_files_per_change: 8
+  monthly_token_budget: 0    # 0 = no soft cap; set a number to make the loop self-throttle
+  auto_merge: false          # true ONLY if you accept self-merging low-risk PRs (not advised)
+
+# Commands the loop runs to SENSE the baseline and VERIFY a change.
+# This repo is a Go backend (cmd/, internal/) + a React/Vite UI in ui/ (pnpm).
+# `go test ./...` uses the pure-Go path (no `cairo` build tag) so it needs no
+# libcairo; the cairo-tagged code is exercised only by `make testgo` natively.
+commands:
+  install: "pnpm -C ui install --frozen-lockfile && go mod download"
+  test: "go test ./..."                # Go regression suite (pure-Go, no cairo/libcairo dependency)
+  benchmark: ""                        # no benchmark suite yet
+  lint: "go vet ./... && pnpm -C ui run lint"   # go vet + eslint on the UI
+  typecheck: "pnpm -C ui run build"    # tsc -b && vite build — UI compile gate
+  security_scan: "pnpm -C ui audit --audit-level high"
+  complexity: ""                       # optional
+  holdout: ""                          # secondary suite/benchmark NOT written against (anti-overfit)
+
+# Cleanliness gates (clean-code skill). Tune to your codebase's conventions.
+thresholds:
+  max_complexity: 10         # per-function cyclomatic complexity
+  max_function_lines: 60
+  max_file_lines: 400
+  max_duplication: "0 new duplicated blocks"   # functionalise anything used more than twice
+
+# Methodology axis (research-and-cite skill).
+domain:
+  # What "primary literature / trusted source" means for THIS project. Be specific.
+  field: "Self-hosted reMarkable sync cloud — Go backend (HTTP API, file sync, MQTT, PDF/v6 rendering) + React/Vite UI"
+  trusted_sources:           # venues, standards, vendor docs the loop should prefer
+    - "Go official docs & proposals (go.dev, pkg.go.dev)"
+    - "IETF RFCs for HTTP, auth, and protocol behavior"
+    - "reMarkable file-format / rmapi references and the upstream ddvk/rmfakecloud project"
+    - "Official documentation for direct dependencies"
+  citations_file: CITATIONS.md   # running ledger of methodological provenance
+
+# Supply-chain / security policy (secure-and-performant skill).
+security:
+  allowed_licenses: [MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC]
+  block_cve_severity: [critical, high]   # do not introduce deps with these; flag for human
+
+# Cadence for drift re-validation (eval-and-benchmark skill).
+cadence:
+  full_revalidation: weekly  # re-run the whole suite from a clean checkout and reconcile baseline
+  diminishing_returns_window: 5  # if last N increments on an axis barely move metrics, switch axes
+
+# Precedence when axes conflict (improvement-loop skill). Earlier = wins.
+tradeoff_precedence: [security, correctness, methodology, performance, style]
+
+# PR body template (improvement-loop fills this in).
+pr_template: |
+  ## What & why
+  ## Axis
+  ## Before -> after (metrics)
+  ## Method & evidence (citations, if any)
+  ## Risk & rollback

@@ -24,3 +24,10 @@ assets_vfsdata.go
 
 # mkdoc build
 site/
+
+# continuous-improvement loop: headless run logs and the install bundle
+improvement/logs/
+continuous-improvement-loop.zip
+
+# macOS
+.DS_Store
