@@ -47,7 +47,7 @@ _Most recent increments and their effect on the targeted metric._
   UI-lint gate RED at baseline — `PrivateRoute.tsx` `React.FC<any>` → `React.ComponentType`
   (no-explicit-any), `Integrations/index.tsx` dropped unused `e` param (no-unused-vars).
   `pnpm -C ui run lint` now exits 0; build/go vet/go test stay green; no behavior change.
-  PR for #5, branch auto-improve/5-ui-lint. (Axis switched away from security/robustness as planned.)
+  PR #6 for #5, branch auto-improve/5-ui-lint. (Axis switched away from security/robustness as planned.)
 
 ## Failed / rejected approaches (do not blindly retry)
 _Record what was tried and why it failed so the loop doesn't loop._
@@ -61,7 +61,7 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
-- 2026-06-25 — phase: auto — ticket #5 — outcome: PR opened (fix 2 baseline eslint errors → UI-lint
+- 2026-06-25 — phase: auto — ticket #5 — outcome: PR #6 opened (fix 2 baseline eslint errors → UI-lint
   gate green; React.FC<any>→React.ComponentType, drop unused `e`) → master. Backlog had only #5;
   code-cleanliness axis. branch auto-improve/5-ui-lint. 2 files / 4 lines, all gates green.
 - 2026-06-25 — phase: auto — ticket #3 — outcome: PR #4 opened (bound 4 unbounded request-body reads
