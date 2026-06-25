@@ -102,7 +102,12 @@ func (l *LLMClient) SendRequest(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("llm hwr not configured: a base URL and model are required")
 	}
 
-	pngBytes, err := renderStrokesPNG(data)
+	var batch iinkBatch
+	if err := json.Unmarshal(data, &batch); err != nil {
+		return nil, fmt.Errorf("parse iink batch: %w", err)
+	}
+
+	pngBytes, err := renderStrokes(&batch)
 	if err != nil {
 		return nil, fmt.Errorf("render strokes: %w", err)
 	}
@@ -112,7 +117,11 @@ func (l *LLMClient) SendRequest(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return buildJIIX(text, contentTypeFromIink(data))
+	var bbox *boundingBox
+	if bb, ok := batch.boundingBoxMM(); ok {
+		bbox = &bb
+	}
+	return buildJIIX(text, batch.ContentType, bbox)
 }
 
 // prompt returns the transcription instruction, applying any configured overrides.
@@ -224,12 +233,24 @@ type jiixText struct {
 
 type jiixWord struct {
 	Label string `json:"label"`
+	// BoundingBox positions the word on the page (in mm). Real words carry it so the device
+	// places each conversion where its handwriting was; whitespace separators omit it.
+	BoundingBox *boundingBox `json:"bounding-box,omitempty"`
+}
+
+type boundingBox struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
 }
 
 // buildJIIX wraps recognized text in the JIIX shape the device asked for, keyed off the
-// iink request's contentType ("Raw Content" for the tablet's Convert to text).
-func buildJIIX(text, contentType string) ([]byte, error) {
-	words := tokenizeWords(text)
+// iink request's contentType ("Raw Content" for the tablet's Convert to text). Every real
+// word shares bbox (the stroke extent), which the device uses to position the text so
+// successive conversions stack instead of overwriting each other.
+func buildJIIX(text, contentType string, bbox *boundingBox) ([]byte, error) {
+	words := tokenizeWords(text, bbox)
 	if contentType == "Text" {
 		return json.Marshal(jiixText{Type: "Text", Label: text, Words: words})
 	}
@@ -239,15 +260,15 @@ func buildJIIX(text, contentType string) ([]byte, error) {
 	})
 }
 
-// tokenizeWords splits text into JIIX word entries: maximal non-whitespace runs are words,
-// and each whitespace character is its own separator entry, so concatenating every label
-// reproduces the original text exactly — as the device-native format requires.
-func tokenizeWords(text string) []jiixWord {
+// tokenizeWords splits text into JIIX word entries: maximal non-whitespace runs are words
+// (each carrying bbox), and each whitespace character is its own separator entry (no bbox),
+// so concatenating every label reproduces the original text exactly.
+func tokenizeWords(text string, bbox *boundingBox) []jiixWord {
 	words := []jiixWord{}
 	var cur strings.Builder
 	flush := func() {
 		if cur.Len() > 0 {
-			words = append(words, jiixWord{Label: cur.String()})
+			words = append(words, jiixWord{Label: cur.String(), BoundingBox: bbox})
 			cur.Reset()
 		}
 	}
@@ -261,13 +282,4 @@ func tokenizeWords(text string) []jiixWord {
 	}
 	flush()
 	return words
-}
-
-// contentTypeFromIink extracts the requested contentType from the iink batch request.
-func contentTypeFromIink(iinkJSON []byte) string {
-	var b struct {
-		ContentType string `json:"contentType"`
-	}
-	_ = json.Unmarshal(iinkJSON, &b)
-	return b.ContentType
 }

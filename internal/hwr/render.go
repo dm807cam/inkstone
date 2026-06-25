@@ -31,8 +31,12 @@ type iinkStroke struct {
 }
 
 // iinkBatch is the subset of the MyScript iink-batch request the tablet POSTs that we need to
-// reconstruct the handwriting. Unknown fields (configuration, contentType, DPI, ...) are ignored.
+// reconstruct the handwriting and place the recognized text. xDPI/yDPI convert the pixel
+// stroke coordinates to the millimeters JIIX bounding boxes use.
 type iinkBatch struct {
+	ContentType  string  `json:"contentType"`
+	XDPI         float64 `json:"xDPI"`
+	YDPI         float64 `json:"yDPI"`
 	StrokeGroups []struct {
 		Strokes []iinkStroke `json:"strokes"`
 	} `json:"strokeGroups"`
@@ -47,13 +51,47 @@ func (b *iinkBatch) allStrokes() []iinkStroke {
 	return out
 }
 
-// renderStrokesPNG parses an iink-batch payload and rasterizes its strokes to a PNG: black
-// ink on a white background, scaled so the longer side is at most renderMaxDim.
+const mmPerInch = 25.4
+
+// defaultDPI is MyScript's default resolution when the request omits xDPI/yDPI.
+const defaultDPI = 96.0
+
+// boundingBoxMM returns the bounding box covering all strokes, converted from pixels to
+// millimeters (the unit JIIX bounding boxes use). The device places converted text at this
+// position, so each conversion lands where its handwriting was instead of overwriting the
+// previous one. Returns false when there are no strokes.
+func (b *iinkBatch) boundingBoxMM() (boundingBox, bool) {
+	minX, minY, maxX, maxY, points := bounds(b.allStrokes())
+	if points == 0 {
+		return boundingBox{}, false
+	}
+	xdpi, ydpi := b.XDPI, b.YDPI
+	if xdpi <= 0 {
+		xdpi = defaultDPI
+	}
+	if ydpi <= 0 {
+		ydpi = defaultDPI
+	}
+	return boundingBox{
+		X:      minX * mmPerInch / xdpi,
+		Y:      minY * mmPerInch / ydpi,
+		Width:  (maxX - minX) * mmPerInch / xdpi,
+		Height: (maxY - minY) * mmPerInch / ydpi,
+	}, true
+}
+
+// renderStrokesPNG parses an iink-batch payload and rasterizes its strokes to a PNG.
 func renderStrokesPNG(iinkJSON []byte) ([]byte, error) {
 	var batch iinkBatch
 	if err := json.Unmarshal(iinkJSON, &batch); err != nil {
 		return nil, fmt.Errorf("parse iink batch: %w", err)
 	}
+	return renderStrokes(&batch)
+}
+
+// renderStrokes rasterizes a parsed batch's strokes to a PNG: black ink on a white
+// background, scaled so the longer side is at most renderMaxDim.
+func renderStrokes(batch *iinkBatch) ([]byte, error) {
 	strokes := batch.allStrokes()
 	if len(strokes) == 0 {
 		return nil, fmt.Errorf("no strokes in iink batch")
