@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"image/png"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -133,9 +134,11 @@ func TestLLMSendRequest(t *testing.T) {
 }
 
 // TestBuildJIIXRawContent covers the shape the reMarkable tablet actually requests:
-// contentType "Raw Content", which must wrap the text in an elements array.
+// contentType "Raw Content", wrapping the text in an elements array, with a bounding box on
+// each real word (so successive conversions are placed and don't overwrite each other).
 func TestBuildJIIXRawContent(t *testing.T) {
-	out, err := buildJIIX("Hi there\nbye", "Raw Content")
+	bbox := &boundingBox{X: 10, Y: 20, Width: 30, Height: 40}
+	out, err := buildJIIX("Hi there\nbye", "Raw Content", bbox)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,21 +158,54 @@ func TestBuildJIIXRawContent(t *testing.T) {
 	}
 	// Concatenating every word label must reproduce the original text exactly.
 	var joined strings.Builder
+	words, separators := 0, 0
 	for _, w := range el.Words {
 		joined.WriteString(w.Label)
+		if strings.TrimSpace(w.Label) == "" {
+			separators++
+			if w.BoundingBox != nil {
+				t.Errorf("separator %q unexpectedly has a bounding box", w.Label)
+			}
+		} else {
+			words++
+			if w.BoundingBox == nil || *w.BoundingBox != *bbox {
+				t.Errorf("word %q missing/wrong bounding box: %+v", w.Label, w.BoundingBox)
+			}
+		}
 	}
 	if joined.String() != "Hi there\nbye" {
 		t.Errorf("word labels concat = %q, want %q", joined.String(), "Hi there\nbye")
 	}
-	// Separators must be preserved as their own entries.
-	if !bytes.Contains(out, []byte(`{"label":" "}`)) || !bytes.Contains(out, []byte(`{"label":"\n"}`)) {
-		t.Errorf("missing separator entries in %s", out)
+	if words != 3 || separators != 2 {
+		t.Errorf("words=%d separators=%d, want 3 and 2", words, separators)
 	}
-	// Raw Content words must not carry these fields.
-	for _, bad := range []string{"candidates", "bounding-box", `"version"`, `"id"`} {
+	// Raw Content must not carry these MyScript Text-export fields.
+	for _, bad := range []string{"candidates", `"version"`, `"id"`} {
 		if bytes.Contains(out, []byte(bad)) {
 			t.Errorf("unexpected field %q in %s", bad, out)
 		}
+	}
+}
+
+// TestBoundingBoxMM checks the pixel→millimeter conversion used to position text.
+func TestBoundingBoxMM(t *testing.T) {
+	// strokes spanning x:[96,192] y:[0,96] at 96 DPI -> 1 inch = 25.4mm
+	batch := iinkBatch{
+		XDPI: 96, YDPI: 96,
+		StrokeGroups: []struct {
+			Strokes []iinkStroke `json:"strokes"`
+		}{{Strokes: []iinkStroke{{X: []float64{96, 192}, Y: []float64{0, 96}}}}},
+	}
+	bb, ok := batch.boundingBoxMM()
+	if !ok {
+		t.Fatal("expected ok")
+	}
+	approx := func(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+	if !approx(bb.X, 25.4) || !approx(bb.Width, 25.4) || !approx(bb.Y, 0) || !approx(bb.Height, 25.4) {
+		t.Errorf("bbox = %+v, want {25.4, 0, 25.4, 25.4}", bb)
+	}
+	if _, ok := (&iinkBatch{}).boundingBoxMM(); ok {
+		t.Error("empty batch should return ok=false")
 	}
 }
 
