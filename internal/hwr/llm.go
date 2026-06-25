@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -111,7 +112,7 @@ func (l *LLMClient) SendRequest(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return buildJIIX(text)
+	return buildJIIX(text, contentTypeFromIink(data))
 }
 
 // prompt returns the transcription instruction, applying any configured overrides.
@@ -197,41 +198,76 @@ func truncate(s string, max int) string {
 	return s[:max] + "...(truncated)"
 }
 
-// jiixDoc mirrors a MyScript JIIX "Text" result. The tablet reads "label" for the full
-// text; the other fields make the document indistinguishable from a real MyScript response.
-type jiixDoc struct {
-	Type        string      `json:"type"`
-	ID          string      `json:"id"`
-	Label       string      `json:"label"`
-	Words       []jiixWord  `json:"words"`
-	BoundingBox boundingBox `json:"bounding-box"`
-	Version     string      `json:"version"`
+// JIIX response shapes. The reMarkable "Convert to text" sends contentType "Raw Content"
+// and expects a "Raw Content" document whose elements carry the recognized text. Older
+// "Text" requests expect a flat Text document. We mirror whichever the device asked for.
+//
+// The device's export config requests words but not bounding-box, so word entries are bare
+// {"label": "..."} with whitespace separators; we omit bounding-box/candidates/id/version,
+// matching what MyScript returns for this request.
+type jiixRawContent struct {
+	Type     string        `json:"type"`
+	Elements []jiixElement `json:"elements"`
+}
+
+type jiixElement struct {
+	Type  string     `json:"type"`
+	Label string     `json:"label"`
+	Words []jiixWord `json:"words"`
+}
+
+type jiixText struct {
+	Type  string     `json:"type"`
+	Label string     `json:"label"`
+	Words []jiixWord `json:"words"`
 }
 
 type jiixWord struct {
-	Label      string   `json:"label"`
-	Candidates []string `json:"candidates"`
+	Label string `json:"label"`
 }
 
-type boundingBox struct {
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	Width  float64 `json:"width"`
-	Height float64 `json:"height"`
+// buildJIIX wraps recognized text in the JIIX shape the device asked for, keyed off the
+// iink request's contentType ("Raw Content" for the tablet's Convert to text).
+func buildJIIX(text, contentType string) ([]byte, error) {
+	words := tokenizeWords(text)
+	if contentType == "Text" {
+		return json.Marshal(jiixText{Type: "Text", Label: text, Words: words})
+	}
+	return json.Marshal(jiixRawContent{
+		Type:     "Raw Content",
+		Elements: []jiixElement{{Type: "Text", Label: text, Words: words}},
+	})
 }
 
-// buildJIIX wraps recognized plain text in a JIIX document. We have no per-word geometry
-// (the model returns plain text), so word/document bounding boxes are left at zero.
-func buildJIIX(text string) ([]byte, error) {
-	doc := jiixDoc{
-		Type:    "Text",
-		ID:      "MainBlock",
-		Label:   text,
-		Words:   []jiixWord{},
-		Version: "3",
+// tokenizeWords splits text into JIIX word entries: maximal non-whitespace runs are words,
+// and each whitespace character is its own separator entry, so concatenating every label
+// reproduces the original text exactly — as the device-native format requires.
+func tokenizeWords(text string) []jiixWord {
+	words := []jiixWord{}
+	var cur strings.Builder
+	flush := func() {
+		if cur.Len() > 0 {
+			words = append(words, jiixWord{Label: cur.String()})
+			cur.Reset()
+		}
 	}
-	for _, w := range strings.Fields(text) {
-		doc.Words = append(doc.Words, jiixWord{Label: w, Candidates: []string{w}})
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			flush()
+			words = append(words, jiixWord{Label: string(r)})
+		} else {
+			cur.WriteRune(r)
+		}
 	}
-	return json.Marshal(doc)
+	flush()
+	return words
+}
+
+// contentTypeFromIink extracts the requested contentType from the iink batch request.
+func contentTypeFromIink(iinkJSON []byte) string {
+	var b struct {
+		ContentType string `json:"contentType"`
+	}
+	_ = json.Unmarshal(iinkJSON, &b)
+	return b.ContentType
 }
