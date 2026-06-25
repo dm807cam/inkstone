@@ -1196,14 +1196,35 @@ func (app *App) handleHwr(c *gin.Context) {
 		badReq(c, "missing bbody")
 		return
 	}
-	log.Debugf("hwr request on %s, %d bytes", c.Request.URL.Path, len(body))
+	logHwrRequest(c, body)
 	response, err := app.recognizerForUser(userID(c)).SendRequest(body)
 	if err != nil {
 		log.Error(err)
 		internalError(c, "cannot send")
 		return
 	}
+	log.Infof("[hwr] responding %d bytes (Content-Type %s): %s", len(response), hwr.JIIX, string(response))
 	c.Data(http.StatusOK, hwr.JIIX, response)
+}
+
+// logHwrRequest logs the parts of the iink request that determine the expected JIIX
+// response shape (contentType, the export configuration, the Accept header), to diagnose
+// format mismatches with the tablet. The strokes themselves are not logged.
+func logHwrRequest(c *gin.Context, body []byte) {
+	var info struct {
+		ContentType   string          `json:"contentType"`
+		Configuration json.RawMessage `json:"configuration"`
+		StrokeGroups  []struct {
+			Strokes []json.RawMessage `json:"strokes"`
+		} `json:"strokeGroups"`
+	}
+	_ = json.Unmarshal(body, &info)
+	strokes := 0
+	for _, g := range info.StrokeGroups {
+		strokes += len(g.Strokes)
+	}
+	log.Infof("[hwr] request on %s: %d bytes, Accept=%q, contentType=%q, strokes=%d, configuration=%s",
+		c.Request.URL.Path, len(body), c.GetHeader("Accept"), info.ContentType, strokes, string(info.Configuration))
 }
 
 // recognizerForUser returns the handwriting recognizer for a user: their per-user LLM
