@@ -39,7 +39,22 @@ const (
 	// a way to invalidate the user token
 	tokenVersion   = 10
 	maxRequestSize = 7000000000
+
+	// Caps for control endpoints that buffer the whole request body in memory.
+	// These are NOT the document/blob upload path (bounded separately by
+	// MaxRequestSize); they only ever carry small JSON/text payloads, so an
+	// unbounded io.ReadAll on them is a memory-exhaustion DoS vector.
+	maxControlBodySize = 1 << 20  // 1 MiB — JSON/text control & telemetry endpoints
+	maxHwrBodySize     = 10 << 20 // 10 MiB — handwriting strokes forwarded to MyScript
 )
+
+// readLimitedBody reads the request body but stops after max bytes, returning an
+// error if the client tries to send more. It guards handlers that buffer the
+// whole body in memory against memory-exhaustion DoS. See http.MaxBytesReader.
+func readLimitedBody(c *gin.Context, max int64) ([]byte, error) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, max)
+	return io.ReadAll(c.Request.Body)
+}
 
 func (app *App) getDeviceClaims(c *gin.Context) (*DeviceClaims, error) {
 	token, err := common.GetToken(c)
@@ -1175,7 +1190,7 @@ func (app *App) uploadRequest(c *gin.Context) {
 }
 
 func (app *App) handleHwr(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := readLimitedBody(c, maxHwrBodySize)
 	if err != nil || len(body) < 1 {
 		log.Warn("no body")
 		badReq(c, "missing bbody")
@@ -1275,7 +1290,7 @@ func (app *App) screenshareBroadcast(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := readLimitedBody(c, maxControlBodySize)
 	if err != nil {
 		badReq(c, "invalid body")
 		return
@@ -1332,7 +1347,7 @@ func (app *App) handleMQTTWebSocket(c *gin.Context) {
 
 // syncReports reports sync errors back
 func (app *App) syncReports(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := readLimitedBody(c, maxControlBodySize)
 
 	if err != nil {
 		log.Warn("cant parse sync report, ignored")

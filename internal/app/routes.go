@@ -1,7 +1,6 @@
 package app
 
 import (
-	"io"
 	"net/http"
 	"runtime"
 
@@ -70,7 +69,10 @@ func (app *App) registerRoutes(router *gin.Engine) {
 	})
 
 	router.POST("/settings/v1/beta", func(c *gin.Context) {
-		body, _ := io.ReadAll(c.Request.Body)
+		body, err := readLimitedBody(c, maxControlBodySize)
+		if err != nil {
+			log.Warn("could not read beta enrollment body: ", err)
+		}
 		log.Info("enrolling in the beta:", string(body))
 		c.Status(http.StatusOK)
 	})
