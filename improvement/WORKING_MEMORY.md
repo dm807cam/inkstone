@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-06-25 on commit 038fee7 (branch master, after PR #2 merged)_
+_Last measured: 2026-06-25 on commit 3e05326 (branch master, after PR #4 merged); branch auto-improve/5-ui-lint for the #5 fix_
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -16,13 +16,13 @@ _Last measured: 2026-06-25 on commit 038fee7 (branch master, after PR #2 merged)
 | coverage      | not tracked                    | —                                     |
 | benchmark(s)  | none                           | (no benchmark suite configured)       |
 | go vet        | clean (exit 0)                 | `go vet ./...`                        |
-| ui lint       | **RED at baseline** (2 errors) | `pnpm -C ui run lint` — see ticket #5 |
+| ui lint       | GREEN on branch (was RED)      | `pnpm -C ui run lint` — #5 fix open as PR |
 | ui build      | PASS                           | `pnpm -C ui run build`                |
 
-Note: the `lint` gate is `go vet ./... && pnpm -C ui run lint`. `go vet` is clean, but
-`pnpm -C ui run lint` already fails on `master` with 2 pre-existing eslint errors in
-`ui/src/components/PrivateRoute.tsx` and `ui/src/pages/Integrations/index.tsx` (filed as #5).
-Treat UI-lint as a known-red baseline until #5 lands; Go-only changes are unaffected.
+Note: the `lint` gate is `go vet ./... && pnpm -C ui run lint`. The 2 pre-existing eslint errors
+in `ui/src/components/PrivateRoute.tsx` and `ui/src/pages/Integrations/index.tsx` (ticket #5) are
+fixed on branch `auto-improve/5-ui-lint` (lint exits 0). The fix is awaiting human merge; UI lint
+remains RED on `master` until that PR lands.
 
 Note: `go test ./...` requires `ui/dist` to exist (the `ui/assets.go` `//go:embed dist/*`).
 Build it first with `pnpm -C ui install --frozen-lockfile && pnpm -C ui run build`, otherwise the
@@ -31,7 +31,7 @@ This is a build-ordering artifact, not a code regression.
 
 ## Budget tally (current month)
 - Month: 2026-06
-- Increments merged: 1 (PR #2 merged → master @038fee7); 1 PR open (#4, awaiting human review)
+- Increments merged: 2 (PR #2 → master @038fee7; PR #4 → master @3e05326); 1 PR open (#5 fix, awaiting human review)
 - Approx. tokens used: n/a (monthly_token_budget = 0, no cap)
 
 ## Metric trend (for diminishing-returns detection)
@@ -43,6 +43,11 @@ _Most recent increments and their effect on the targeted metric._
   control endpoints with `http.MaxBytesReader` (DoS guard); +2 tests; suite stays green — PR #4
   branch auto-improve/3-bound-request-bodies. (2 increments on this axis; window=5, no diminishing
   returns yet — but consider switching axes if the next one also lands here.)
+- 2026-06-25 — axis: code cleanliness — Δ: fixed the 2 pre-existing eslint errors that kept the
+  UI-lint gate RED at baseline — `PrivateRoute.tsx` `React.FC<any>` → `React.ComponentType`
+  (no-explicit-any), `Integrations/index.tsx` dropped unused `e` param (no-unused-vars).
+  `pnpm -C ui run lint` now exits 0; build/go vet/go test stay green; no behavior change.
+  PR for #5, branch auto-improve/5-ui-lint. (Axis switched away from security/robustness as planned.)
 
 ## Failed / rejected approaches (do not blindly retry)
 _Record what was tried and why it failed so the loop doesn't loop._
@@ -56,6 +61,9 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-06-25 — phase: auto — ticket #5 — outcome: PR opened (fix 2 baseline eslint errors → UI-lint
+  gate green; React.FC<any>→React.ComponentType, drop unused `e`) → master. Backlog had only #5;
+  code-cleanliness axis. branch auto-improve/5-ui-lint. 2 files / 4 lines, all gates green.
 - 2026-06-25 — phase: auto — ticket #3 — outcome: PR #4 opened (bound 4 unbounded request-body reads
   with http.MaxBytesReader + 2 tests) → master. Empty backlog at start; also groomed #5 (red UI lint
   baseline). PR: auto-improve/3-bound-request-bodies.
