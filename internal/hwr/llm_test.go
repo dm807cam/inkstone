@@ -119,7 +119,8 @@ func TestLLMSendRequest(t *testing.T) {
 		t.Fatalf("SendRequest: %v", err)
 	}
 
-	var doc jiixDoc
+	// sampleIink declares contentType "Text", so we get the flat Text document.
+	var doc jiixText
 	if err := json.Unmarshal(out, &doc); err != nil {
 		t.Fatalf("unmarshal jiix: %v", err)
 	}
@@ -128,6 +129,47 @@ func TestLLMSendRequest(t *testing.T) {
 	}
 	if doc.Label != want {
 		t.Errorf("jiix label = %q, want %q", doc.Label, want)
+	}
+}
+
+// TestBuildJIIXRawContent covers the shape the reMarkable tablet actually requests:
+// contentType "Raw Content", which must wrap the text in an elements array.
+func TestBuildJIIXRawContent(t *testing.T) {
+	out, err := buildJIIX("Hi there\nbye", "Raw Content")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc jiixRawContent
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if doc.Type != "Raw Content" {
+		t.Errorf("type = %q, want %q", doc.Type, "Raw Content")
+	}
+	if len(doc.Elements) != 1 {
+		t.Fatalf("elements = %d, want 1", len(doc.Elements))
+	}
+	el := doc.Elements[0]
+	if el.Type != "Text" || el.Label != "Hi there\nbye" {
+		t.Errorf("element = %+v", el)
+	}
+	// Concatenating every word label must reproduce the original text exactly.
+	var joined strings.Builder
+	for _, w := range el.Words {
+		joined.WriteString(w.Label)
+	}
+	if joined.String() != "Hi there\nbye" {
+		t.Errorf("word labels concat = %q, want %q", joined.String(), "Hi there\nbye")
+	}
+	// Separators must be preserved as their own entries.
+	if !bytes.Contains(out, []byte(`{"label":" "}`)) || !bytes.Contains(out, []byte(`{"label":"\n"}`)) {
+		t.Errorf("missing separator entries in %s", out)
+	}
+	// Raw Content words must not carry these fields.
+	for _, bad := range []string{"candidates", "bounding-box", `"version"`, `"id"`} {
+		if bytes.Contains(out, []byte(bad)) {
+			t.Errorf("unexpected field %q in %s", bad, out)
+		}
 	}
 }
 

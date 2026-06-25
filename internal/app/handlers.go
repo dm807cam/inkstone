@@ -1203,13 +1203,15 @@ func (app *App) handleHwr(c *gin.Context) {
 		internalError(c, "cannot send")
 		return
 	}
-	log.Infof("[hwr] responding %d bytes (Content-Type %s): %s", len(response), hwr.JIIX, string(response))
+	log.Infof("[hwr] %s: responded %d bytes", c.Request.URL.Path, len(response))
+	log.Debugf("[hwr] response body: %s", string(response))
 	c.Data(http.StatusOK, hwr.JIIX, response)
 }
 
 // logHwrRequest logs the parts of the iink request that determine the expected JIIX
-// response shape (contentType, the export configuration, the Accept header), to diagnose
-// format mismatches with the tablet. The strokes themselves are not logged.
+// response shape (contentType, the export configuration, the Accept header). A concise
+// summary at info level; full configuration (and the response body) only at debug. The
+// strokes and recognized text are never logged at info, to avoid leaking note content.
 func logHwrRequest(c *gin.Context, body []byte) {
 	var info struct {
 		ContentType   string          `json:"contentType"`
@@ -1223,8 +1225,9 @@ func logHwrRequest(c *gin.Context, body []byte) {
 	for _, g := range info.StrokeGroups {
 		strokes += len(g.Strokes)
 	}
-	log.Infof("[hwr] request on %s: %d bytes, Accept=%q, contentType=%q, strokes=%d, configuration=%s",
-		c.Request.URL.Path, len(body), c.GetHeader("Accept"), info.ContentType, strokes, string(info.Configuration))
+	log.Infof("[hwr] request on %s: %d bytes, contentType=%q, strokes=%d",
+		c.Request.URL.Path, len(body), info.ContentType, strokes)
+	log.Debugf("[hwr] request Accept=%q configuration=%s", c.GetHeader("Accept"), string(info.Configuration))
 }
 
 // recognizerForUser returns the handwriting recognizer for a user: their per-user LLM
