@@ -65,6 +65,10 @@ func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	auth.POST("profile", app.changePassword)
 	// auth.POST("changeEmail", app.changePassword)
 
+	// per-user handwriting recognition ("Convert to text") settings
+	auth.GET("hwr", app.getHwrSettings)
+	auth.PUT("hwr", app.saveHwrSettings)
+
 	auth.GET("documents", app.listDocuments)
 	auth.GET("documents/:docid", app.getDocument)
 	auth.POST("documents/upload", app.createDocument)

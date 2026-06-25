@@ -43,7 +43,7 @@ type App struct {
 	hub           *hub.Hub
 	passcodeStore passcodestore.Store
 	codeConnector CodeConnector
-	hwrClient     *hwr.HWRClient
+	hwrClient     hwr.Recognizer
 	mqttBroker    *mqtt.Broker
 	roomManager   *screenshare.RoomManager
 }
@@ -169,9 +169,7 @@ func NewApp(cfg *config.Config) App {
 		hub:           ntfHub,
 		passcodeStore: pcStore,
 		codeConnector: codeConnector,
-		hwrClient: &hwr.HWRClient{
-			Cfg: cfg,
-		},
+		hwrClient:     hwr.NewRecognizer(cfg),
 	}
 
 	roomMgr := screenshare.NewRoomManager()

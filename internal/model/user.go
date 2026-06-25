@@ -55,6 +55,20 @@ type User struct {
 	AdditionalScopes []string
 	// Integrations stores the list of "Integrations" as shown on the tablet.
 	Integrations []IntegrationConfig
+	// HWR is a per-user override for handwriting recognition (the tablet's "Convert to text").
+	// When unset, the instance-wide configuration is used.
+	HWR *UserHWR `yaml:"hwr,omitempty"`
+}
+
+// UserHWR is a per-user override for handwriting recognition. Provider "llm" routes
+// "Convert to text" to an OpenAI-compatible vision model; empty uses the instance default.
+type UserHWR struct {
+	Provider     string `yaml:"provider,omitempty"`
+	LLMURL       string `yaml:"llmurl,omitempty"`
+	LLMKey       string `yaml:"llmkey,omitempty"`
+	LLMModel     string `yaml:"llmmodel,omitempty"`
+	LLMPrompt    string `yaml:"llmprompt,omitempty"`
+	LangOverride string `yaml:"langoverride,omitempty"`
 }
 
 // IntegrationConfig config for various integrations
