@@ -54,12 +54,44 @@ type imageURL struct {
 type chatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			// Content is a plain string for most models, but some return an array of
+			// content parts ([{type,text},...]); RawMessage lets us handle both.
+			Content json.RawMessage `json:"content"`
+			// Reasoning models sometimes leave Content empty and put the answer here.
+			Reasoning string `json:"reasoning"`
 		} `json:"message"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
+}
+
+// extractText pulls the transcription out of a chat message, tolerating content delivered
+// as a plain string, as an array of {type,text} parts, or (for reasoning models) only in
+// the reasoning field.
+func extractText(content json.RawMessage, reasoning string) string {
+	if len(content) > 0 {
+		var s string
+		if json.Unmarshal(content, &s) == nil {
+			if t := strings.TrimSpace(s); t != "" {
+				return t
+			}
+		} else {
+			var parts []struct {
+				Text string `json:"text"`
+			}
+			if json.Unmarshal(content, &parts) == nil {
+				var b strings.Builder
+				for _, p := range parts {
+					b.WriteString(p.Text)
+				}
+				if t := strings.TrimSpace(b.String()); t != "" {
+					return t
+				}
+			}
+		}
+	}
+	return strings.TrimSpace(reasoning)
 }
 
 // SendRequest renders the iink payload, runs vision OCR, and returns a JIIX document so the
@@ -149,31 +181,57 @@ func (l *LLMClient) transcribe(pngBytes []byte) (string, error) {
 	if len(parsed.Choices) == 0 {
 		return "", fmt.Errorf("vision endpoint returned no choices")
 	}
-	return strings.TrimSpace(parsed.Choices[0].Message.Content), nil
+
+	text := extractText(parsed.Choices[0].Message.Content, parsed.Choices[0].Message.Reasoning)
+	if text == "" {
+		return "", fmt.Errorf("vision endpoint returned empty text (the model may not support image input); raw response: %s", truncate(string(body), 800))
+	}
+	return text, nil
 }
 
-// jiixDoc is the minimal MyScript JIIX "Text" result the tablet renders; it reads "label".
+// truncate caps a string for safe inclusion in error/log messages.
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...(truncated)"
+}
+
+// jiixDoc mirrors a MyScript JIIX "Text" result. The tablet reads "label" for the full
+// text; the other fields make the document indistinguishable from a real MyScript response.
 type jiixDoc struct {
-	Type    string     `json:"type"`
-	Label   string     `json:"label"`
-	Words   []jiixWord `json:"words"`
-	Version string     `json:"version"`
+	Type        string      `json:"type"`
+	ID          string      `json:"id"`
+	Label       string      `json:"label"`
+	Words       []jiixWord  `json:"words"`
+	BoundingBox boundingBox `json:"bounding-box"`
+	Version     string      `json:"version"`
 }
 
 type jiixWord struct {
-	Label string `json:"label"`
+	Label      string   `json:"label"`
+	Candidates []string `json:"candidates"`
 }
 
-// buildJIIX wraps recognized plain text in a JIIX document.
+type boundingBox struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+// buildJIIX wraps recognized plain text in a JIIX document. We have no per-word geometry
+// (the model returns plain text), so word/document bounding boxes are left at zero.
 func buildJIIX(text string) ([]byte, error) {
 	doc := jiixDoc{
 		Type:    "Text",
+		ID:      "MainBlock",
 		Label:   text,
 		Words:   []jiixWord{},
 		Version: "3",
 	}
 	for _, w := range strings.Fields(text) {
-		doc.Words = append(doc.Words, jiixWord{Label: w})
+		doc.Words = append(doc.Words, jiixWord{Label: w, Candidates: []string{w}})
 	}
 	return json.Marshal(doc)
 }

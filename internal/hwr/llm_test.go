@@ -93,15 +93,12 @@ func TestLLMSendRequest(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(chatResponse{
-			Choices: []struct {
-				Message struct {
-					Content string `json:"content"`
-				} `json:"message"`
-			}{{Message: struct {
-				Content string `json:"content"`
-			}{Content: want}}},
+		resp, _ := json.Marshal(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]any{"content": want}},
+			},
 		})
+		w.Write(resp)
 	}))
 	defer srv.Close()
 
@@ -138,6 +135,44 @@ func TestLLMNotConfigured(t *testing.T) {
 	rec := &LLMClient{}
 	if _, err := rec.SendRequest([]byte(sampleIink)); err == nil {
 		t.Fatal("expected error when url/model unset")
+	}
+}
+
+func TestExtractText(t *testing.T) {
+	cases := []struct {
+		name      string
+		content   string
+		reasoning string
+		want      string
+	}{
+		{"plain string", `"hello world"`, "", "hello world"},
+		{"content parts", `[{"type":"text","text":"hel"},{"type":"text","text":"lo"}]`, "", "hello"},
+		{"empty content falls back to reasoning", `""`, "from reasoning", "from reasoning"},
+		{"null content falls back to reasoning", `null`, "reasoned", "reasoned"},
+		{"all empty", `""`, "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractText(json.RawMessage(tc.content), tc.reasoning)
+			if got != tc.want {
+				t.Errorf("extractText = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestLLMEmptyContentErrors guards the failure that showed up on-device: a 200 response whose
+// content is empty must surface as an error (and a diagnostic), not an empty JIIX document.
+func TestLLMEmptyContentErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":""}}]}`))
+	}))
+	defer srv.Close()
+
+	rec := &LLMClient{URL: srv.URL, Model: "m"}
+	if _, err := rec.SendRequest([]byte(sampleIink)); err == nil {
+		t.Fatal("expected error for empty content, got nil")
 	}
 }
 
