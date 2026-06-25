@@ -202,6 +202,22 @@ class ApiServices {
       headers: this.header(),
     }).then((r) => handleError(r));
   }
+  getHwr() {
+    return fetch(`${constants.ROOT_URL}/hwr`, {
+      method: "GET",
+      headers: this.header(),
+    }).then((r) => {
+      handleError(r);
+      return r.json();
+    });
+  }
+  saveHwr(settings) {
+    return fetch(`${constants.ROOT_URL}/hwr`, {
+      method: "PUT",
+      headers: this.header(),
+      body: JSON.stringify(settings),
+    }).then((r) => handleError(r));
+  }
 }
 
 function removeUser(){

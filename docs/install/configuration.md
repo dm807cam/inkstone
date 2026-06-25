@@ -15,7 +15,16 @@ The configuration is made through environment variables.
 
 ## Handwriting recognition
 
-To use the handwriting recognition feature, you need first to create a free account on <https://developer.myscript.com/> (up to 2000 free recognitions per month).
+This powers the tablet's **"Convert to text"** button. When you tap it, the tablet sends the pen
+strokes to the cloud and displays the text it gets back. Choose a backend with `RMAPI_HWR_PROVIDER`:
+
+| Variable name        | Description |
+|----------------------|-------------|
+| `RMAPI_HWR_PROVIDER` | `myscript` (default) or `llm` |
+
+### MyScript backend (default)
+
+To use the MyScript backend, you need first to create a free account on <https://developer.myscript.com/> (up to 2000 free recognitions per month).
 
 Then you'll obtains an application key and its corresponding HMAC to give to rmfakecloud:
 
@@ -25,6 +34,38 @@ Then you'll obtains an application key and its corresponding HMAC to give to rmf
 | `RMAPI_HWR_HMAC`           | HMAC obtained from myscript |
 | `RMAPI_HWR_LANG_OVERRIDE`  | Optional: Use this if you want your handwriting to be recognized as a different language. This variable accepts a locale code (e.g., zh_CN). Refer to [this page](https://app-support.myscript.com/support/solutions/articles/16000086001-supported-languages) for supported languages.|
 | `RMAPI_HWR_HOST`           | Optional: Custom myScript host URL (default: `https://cloud.myscript.com`). Supports http/https and custom ports. |
+
+### LLM backend (self-hosted, no MyScript account)
+
+Set `RMAPI_HWR_PROVIDER=llm` to recognize handwriting with a vision model instead. The server
+renders your strokes to an image and asks an **OpenAI-compatible** vision endpoint to transcribe
+it, so it works with [Ollama](https://ollama.com), OpenRouter, OpenAI, or any compatible server.
+
+| Variable name           | Description |
+|-------------------------|-------------|
+| `RMAPI_HWR_LLM_URL`     | OpenAI-compatible base URL, e.g. `http://localhost:11434/v1` (Ollama), `https://openrouter.ai/api/v1`, `https://api.openai.com/v1` |
+| `RMAPI_HWR_LLM_KEY`     | API key (optional for local Ollama) |
+| `RMAPI_HWR_LLM_MODEL`   | Vision model id, e.g. `llama3.2-vision`, `gpt-4o`, `qwen/qwen-2.5-vl-7b-instruct` |
+| `RMAPI_HWR_LLM_PROMPT`  | Optional: override the transcription prompt |
+| `RMAPI_HWR_LANG_OVERRIDE` | Optional: appended to the prompt as a language hint |
+
+Example (fully local with Ollama):
+
+```sh
+RMAPI_HWR_PROVIDER=llm
+RMAPI_HWR_LLM_URL=http://localhost:11434/v1
+RMAPI_HWR_LLM_MODEL=llama3.2-vision
+```
+
+> **Privacy:** with Ollama the handwriting never leaves your machine. Pointing the URL at a
+> hosted provider (OpenRouter, OpenAI, ...) sends the rendered image to that third party.
+
+### Per-user LLM override
+
+Each user can point "Convert to text" at their own vision model from the web UI under
+**Profile → Handwriting recognition**, without any server restart or env vars. When a user
+enables it, their settings take precedence over the instance-wide configuration above; otherwise
+the server default is used. Stored API keys are never sent back to the browser.
 
 ## Email settings
 

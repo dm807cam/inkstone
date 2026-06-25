@@ -73,6 +73,16 @@ const (
 	// envHwrLangOverride override the language specified in myScript requests
 	envHwrLangOverride = "RMAPI_HWR_LANG_OVERRIDE"
 	envHwrHost         = "RMAPI_HWR_HOST"
+	// envHwrProvider selects the handwriting recognition backend: "myscript" (default) or "llm"
+	envHwrProvider = "RMAPI_HWR_PROVIDER"
+	// envHwrLLMURL OpenAI-compatible base URL for the vision model (Ollama/OpenRouter/OpenAI)
+	envHwrLLMURL = "RMAPI_HWR_LLM_URL"
+	// envHwrLLMKey API key for the vision model (optional for local Ollama)
+	envHwrLLMKey = "RMAPI_HWR_LLM_KEY"
+	// envHwrLLMModel vision model id, e.g. llama3.2-vision
+	envHwrLLMModel = "RMAPI_HWR_LLM_MODEL"
+	// envHwrLLMPrompt optional override for the transcription prompt
+	envHwrLLMPrompt = "RMAPI_HWR_LLM_PROMPT"
 	// EnvLogFile log file to use
 	EnvLogFile     = "RM_LOGFILE"
 	envHTTPSCookie = "RM_HTTPS_COOKIE"
@@ -101,6 +111,11 @@ type Config struct {
 	HWRHmac           string
 	HWRLangOverride   string
 	HWRHost           string
+	HWRProvider       string
+	HWRLLMURL         string
+	HWRLLMKey         string
+	HWRLLMModel       string
+	HWRLLMPrompt      string
 	HTTPSCookie       bool
 	TrustProxy        bool
 	MQTTPort          string
@@ -124,11 +139,21 @@ func (cfg *Config) Verify() {
 		log.Warnln("smtp not configured, no emails will be sent")
 	}
 
-	if cfg.HWRApplicationKey == "" {
-		log.Info("if you want HWR, provide the myScript applicationKey in: " + envHwrApplicationKey)
-	}
-	if cfg.HWRHmac == "" {
-		log.Info("provide the myScript hmac in: " + envHwrHmac)
+	switch cfg.HWRProvider {
+	case "llm":
+		if cfg.HWRLLMURL == "" {
+			log.Info("HWR provider is 'llm' but no base URL set in: " + envHwrLLMURL)
+		}
+		if cfg.HWRLLMModel == "" {
+			log.Info("HWR provider is 'llm' but no model set in: " + envHwrLLMModel)
+		}
+	default:
+		if cfg.HWRApplicationKey == "" {
+			log.Info("if you want HWR, provide the myScript applicationKey in: " + envHwrApplicationKey)
+		}
+		if cfg.HWRHmac == "" {
+			log.Info("provide the myScript hmac in: " + envHwrHmac)
+		}
 	}
 
 	if cfg.Certificate.Certificate == nil {
@@ -278,6 +303,11 @@ func FromEnv() *Config {
 		HWRHmac:           os.Getenv(envHwrHmac),
 		HWRLangOverride:   os.Getenv(envHwrLangOverride),
 		HWRHost:           os.Getenv(envHwrHost),
+		HWRProvider:       os.Getenv(envHwrProvider),
+		HWRLLMURL:         os.Getenv(envHwrLLMURL),
+		HWRLLMKey:         os.Getenv(envHwrLLMKey),
+		HWRLLMModel:       os.Getenv(envHwrLLMModel),
+		HWRLLMPrompt:      os.Getenv(envHwrLLMPrompt),
 		HTTPSCookie:       httpsCookie,
 		TrustProxy:        trustProxy,
 		MQTTPort:          mqttPort,
@@ -324,11 +354,20 @@ Emails, smtp:
 	%s	custom HELO (if your email server needs it)
 	%s	override the email's From:
 
-myScript hwr (needs a developer account):
+handwriting recognition (the tablet's "Convert to text"):
+	%s      backend: "myscript" (default) or "llm"
+
+  myScript backend (needs a developer account):
 	%s
 	%s
 	%s      override the language specified in myScript requests
 	%s      custom myScript host URL (default: https://cloud.myscript.com)
+
+  llm backend (OpenAI-compatible vision model: Ollama / OpenRouter / OpenAI):
+	%s          base URL, e.g. http://localhost:11434/v1
+	%s          API key (optional for local Ollama)
+	%s        vision model id, e.g. llama3.2-vision
+	%s       optional transcription prompt override
 
 V6 file format support:
 	Native rmc-go library with Cairo renderer is always enabled.
@@ -361,9 +400,14 @@ V6 file format support:
 		envSMTPHelo,
 		envSMTPFrom,
 
+		envHwrProvider,
 		envHwrApplicationKey,
 		envHwrHmac,
 		envHwrLangOverride,
 		envHwrHost,
+		envHwrLLMURL,
+		envHwrLLMKey,
+		envHwrLLMModel,
+		envHwrLLMPrompt,
 	)
 }

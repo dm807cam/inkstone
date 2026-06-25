@@ -1196,7 +1196,8 @@ func (app *App) handleHwr(c *gin.Context) {
 		badReq(c, "missing bbody")
 		return
 	}
-	response, err := app.hwrClient.SendRequest(body)
+	log.Debugf("hwr request on %s, %d bytes", c.Request.URL.Path, len(body))
+	response, err := app.recognizerForUser(userID(c)).SendRequest(body)
 	if err != nil {
 		log.Error(err)
 		internalError(c, "cannot send")
@@ -1204,6 +1205,24 @@ func (app *App) handleHwr(c *gin.Context) {
 	}
 	c.Data(http.StatusOK, hwr.JIIX, response)
 }
+
+// recognizerForUser returns the handwriting recognizer for a user: their per-user LLM
+// override when configured, otherwise the instance-wide default.
+func (app *App) recognizerForUser(uid string) hwr.Recognizer {
+	user, err := app.userStorer.GetUser(uid)
+	if err == nil && user.HWR != nil && user.HWR.Provider == "llm" &&
+		user.HWR.LLMURL != "" && user.HWR.LLMModel != "" {
+		return &hwr.LLMClient{
+			URL:    user.HWR.LLMURL,
+			Key:    user.HWR.LLMKey,
+			Model:  user.HWR.LLMModel,
+			Prompt: user.HWR.LLMPrompt,
+			Lang:   user.HWR.LangOverride,
+		}
+	}
+	return app.hwrClient
+}
+
 func (app *App) connectWebSocket(c *gin.Context) {
 	uid := userID(c)
 	deviceID := c.GetString(deviceIDKey)

@@ -665,6 +665,81 @@ func (app *ReactAppWrapper) updateIntegration(c *gin.Context) {
 	c.AbortWithStatus(http.StatusNotFound)
 }
 
+// hwrSettings is the per-user handwriting-recognition settings exchanged with the web UI.
+// The LLM key is never sent back to the browser; HasKey reports whether one is stored.
+type hwrSettings struct {
+	Provider     string `json:"provider"`
+	LLMURL       string `json:"llmUrl"`
+	LLMKey       string `json:"llmKey,omitempty"`
+	LLMModel     string `json:"llmModel"`
+	LLMPrompt    string `json:"llmPrompt"`
+	LangOverride string `json:"langOverride"`
+	HasKey       bool   `json:"hasKey"`
+}
+
+func (app *ReactAppWrapper) getHwrSettings(c *gin.Context) {
+	uid := userID(c)
+
+	user, err := app.userStorer.GetUser(uid)
+	if err != nil {
+		log.Error(err)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	s := hwrSettings{}
+	if user.HWR != nil {
+		s.Provider = user.HWR.Provider
+		s.LLMURL = user.HWR.LLMURL
+		s.LLMModel = user.HWR.LLMModel
+		s.LLMPrompt = user.HWR.LLMPrompt
+		s.LangOverride = user.HWR.LangOverride
+		s.HasKey = user.HWR.LLMKey != ""
+	}
+	c.JSON(http.StatusOK, s)
+}
+
+func (app *ReactAppWrapper) saveHwrSettings(c *gin.Context) {
+	var s hwrSettings
+	if err := c.ShouldBindJSON(&s); err != nil {
+		log.Error(err)
+		badReq(c, err.Error())
+		return
+	}
+
+	uid := userID(c)
+
+	user, err := app.userStorer.GetUser(uid)
+	if err != nil {
+		log.Error(err)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	cfg := &model.UserHWR{
+		Provider:     s.Provider,
+		LLMURL:       s.LLMURL,
+		LLMKey:       s.LLMKey,
+		LLMModel:     s.LLMModel,
+		LLMPrompt:    s.LLMPrompt,
+		LangOverride: s.LangOverride,
+	}
+	// An empty key on save means "keep the existing one" so editing other fields in the UI
+	// (where the key is never displayed) doesn't wipe it.
+	if cfg.LLMKey == "" && user.HWR != nil {
+		cfg.LLMKey = user.HWR.LLMKey
+	}
+	user.HWR = cfg
+
+	if err := app.userStorer.UpdateUser(user); err != nil {
+		log.Error("error updating user", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
 func (app *ReactAppWrapper) deleteIntegration(c *gin.Context) {
 	uid := userID(c)
 

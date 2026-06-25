@@ -22,6 +22,29 @@ const (
 	JIIX = "application/vnd.myscript.jiix"
 )
 
+// Recognizer turns the tablet's iink-batch handwriting payload into a JIIX response.
+// The reMarkable "Convert to text" button POSTs MyScript iink-batch JSON and renders the
+// "label" field of the returned JIIX, so every backend must speak that same contract.
+type Recognizer interface {
+	SendRequest(data []byte) (body []byte, err error)
+}
+
+// NewRecognizer selects the handwriting recognition backend from configuration.
+// "llm" routes to a self-hosted vision model; anything else uses MyScript (the default).
+func NewRecognizer(cfg *config.Config) Recognizer {
+	if cfg != nil && cfg.HWRProvider == "llm" {
+		return &LLMClient{
+			URL:    cfg.HWRLLMURL,
+			Key:    cfg.HWRLLMKey,
+			Model:  cfg.HWRLLMModel,
+			Prompt: cfg.HWRLLMPrompt,
+			Lang:   cfg.HWRLangOverride,
+		}
+	}
+	return &HWRClient{Cfg: cfg}
+}
+
+// HWRClient forwards the iink-batch payload to the MyScript cloud verbatim.
 type HWRClient struct {
 	Cfg *config.Config
 }
