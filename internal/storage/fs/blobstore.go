@@ -856,14 +856,18 @@ func (fs *FileSystemStorage) LoadBlob(uid, blobid string) (reader io.ReadCloser,
 		return
 	}
 	//TODO: cache the crc32c
+	// Close osFile on the error paths below: on success it is returned as the
+	// io.ReadCloser for the caller to close, so a blanket defer is not used.
 	hash, err = common.CRC32CFromReader(osFile)
 	if err != nil {
 		log.Errorf("cannot get crc32c hash %v", err)
+		osFile.Close()
 		return
 	}
 	_, err = osFile.Seek(0, 0)
 	if err != nil {
 		log.Errorf("cannot rewind file %v", err)
+		osFile.Close()
 		return
 	}
 	reader = osFile

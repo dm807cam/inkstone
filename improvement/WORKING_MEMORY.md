@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-06-25 on commit 3e05326 (branch master, after PR #4 merged); branch auto-improve/5-ui-lint for the #5 fix_
+_Last measured: 2026-06-26 on commit 158a57b (branch master). Drift since 3e05326: PRs #6–#11 merged (UI-lint fix #6, plus the LLM "Convert to text" HWR feature #7–#11)._
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -16,13 +16,17 @@ _Last measured: 2026-06-25 on commit 3e05326 (branch master, after PR #4 merged)
 | coverage      | not tracked                    | —                                     |
 | benchmark(s)  | none                           | (no benchmark suite configured)       |
 | go vet        | clean (exit 0)                 | `go vet ./...`                        |
-| ui lint       | GREEN on branch (was RED)      | `pnpm -C ui run lint` — #5 fix open as PR |
+| ui lint       | GREEN on master (exit 0)       | `pnpm -C ui run lint` (#6 merged)     |
 | ui build      | PASS                           | `pnpm -C ui run build`                |
+| ui audit      | FAIL — 40 vulns (20 high)      | `pnpm -C ui audit --audit-level high` |
 
-Note: the `lint` gate is `go vet ./... && pnpm -C ui run lint`. The 2 pre-existing eslint errors
-in `ui/src/components/PrivateRoute.tsx` and `ui/src/pages/Integrations/index.tsx` (ticket #5) are
-fixed on branch `auto-improve/5-ui-lint` (lint exits 0). The fix is awaiting human merge; UI lint
-remains RED on `master` until that PR lands.
+Note: the `lint` gate `go vet ./... && pnpm -C ui run lint` is now GREEN on `master` — PR #6
+(#5 fix) merged, so the 2 baseline eslint errors are gone. UI lint is a usable regression signal again.
+
+Note: the `security_scan` gate (`pnpm -C ui audit --audit-level high`) is RED at baseline — 40
+advisories (20 high), mostly build-time devDependencies (vite <=6.4.2, ws via mqtt, esbuild, etc.).
+Remediation = dependency upgrades, which are HUMAN-GATED per CLAUDE.md rule 4; the loop must NOT
+bump deps autonomously. Flag for a human; do not treat as a loop-actionable regression.
 
 Note: `go test ./...` requires `ui/dist` to exist (the `ui/assets.go` `//go:embed dist/*`).
 Build it first with `pnpm -C ui install --frozen-lockfile && pnpm -C ui run build`, otherwise the
@@ -31,7 +35,8 @@ This is a build-ordering artifact, not a code regression.
 
 ## Budget tally (current month)
 - Month: 2026-06
-- Increments merged: 2 (PR #2 → master @038fee7; PR #4 → master @3e05326); 1 PR open (#5 fix, awaiting human review)
+- Increments merged: 3 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885)
+- PRs open: 1 (#13 — LoadBlob FD-leak fix for #12, awaiting human review)
 - Approx. tokens used: n/a (monthly_token_budget = 0, no cap)
 
 ## Metric trend (for diminishing-returns detection)
@@ -48,10 +53,19 @@ _Most recent increments and their effect on the targeted metric._
   (no-explicit-any), `Integrations/index.tsx` dropped unused `e` param (no-unused-vars).
   `pnpm -C ui run lint` now exits 0; build/go vet/go test stay green; no behavior change.
   PR #6 for #5, branch auto-improve/5-ui-lint. (Axis switched away from security/robustness as planned.)
+- 2026-06-26 — axis: security/robustness + correctness — Δ: fixed a file-descriptor leak in
+  `FileSystemStorage.LoadBlob` (closed `osFile` on the crc/seek error paths; success path returns it
+  as the reader, so no blanket defer) + added 2 unit tests for the previously-untested `LoadBlob`.
+  Suite stays green; vet clean. PR #13 for #12, branch auto-improve/12-loadblob-fd-leak. (3rd
+  security/robustness increment in window=5; HWR feature work #7–#11 landed in between, so not a
+  pure run of this axis — no diminishing returns observed, metrics still moving on real bugs.)
 
 ## Failed / rejected approaches (do not blindly retry)
 _Record what was tried and why it failed so the loop doesn't loop._
 - (none yet)
+- NOTE (not a failure, a gate): `pnpm -C ui audit` red is NOT loop-actionable — fixing it means
+  upgrading deps (vite/ws/esbuild/...), which is human-gated. Don't re-open this as a loop ticket;
+  if surfaced, flag for a human only.
 
 ## Decisions & notes
 _Durable choices worth remembering (e.g. "library X chosen over Y because …")._
@@ -61,6 +75,12 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-06-26 — phase: auto — ticket #12 — outcome: PR #13 opened (close blob file on LoadBlob
+  error paths → fix FD leak; +2 LoadBlob unit tests) → master. Empty backlog at start; filed #12
+  during scouting then implemented it. security/robustness+correctness axis. branch
+  auto-improve/12-loadblob-fd-leak. 2 files / +4 lines code + new test file, all Go gates green.
+  Noted baseline drift (PRs #6–#11 merged; UI-lint now green) and that the ui-audit gate is red
+  but human-gated (deps).
 - 2026-06-25 — phase: auto — ticket #5 — outcome: PR #6 opened (fix 2 baseline eslint errors → UI-lint
   gate green; React.FC<any>→React.ComponentType, drop unused `e`) → master. Backlog had only #5;
   code-cleanliness axis. branch auto-improve/5-ui-lint. 2 files / 4 lines, all gates green.
