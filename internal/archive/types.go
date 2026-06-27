@@ -102,13 +102,53 @@ type Content struct {
 	// Orientation can take "portrait" or "landscape".
 	Orientation string `json:"orientation"`
 	PageCount   int    `json:"pageCount"`
-	// Pages is a list of page IDs
-	Pages          []string `json:"pages"`
+	// Pages is the legacy (formatVersion 1) flat list of page IDs.
+	Pages []string `json:"pages"`
+	// CPages is the modern (formatVersion 2) page list. When present it, not
+	// Pages, holds the authoritative page order.
+	CPages         CPages   `json:"cPages"`
 	Tags           []string `json:"pageTags"`
 	RedirectionMap []int    `json:"redirectionPageMap"`
 	TextScale      int      `json:"textScale"`
 
 	Transform Transform `json:"transform"`
+}
+
+// CPages is the modern page container in a .content file (formatVersion 2).
+type CPages struct {
+	Pages []CPage `json:"pages"`
+}
+
+// CPage is a single entry in CPages. The slice order is the on-device page
+// order; deleted pages remain in the list and are flagged via Deleted.
+type CPage struct {
+	ID      string       `json:"id"`
+	Deleted *CPageMarker `json:"deleted"`
+}
+
+// CPageMarker is the generic {timestamp, value} wrapper reMarkable uses for
+// per-page attributes. For deletion only its presence/value matters here.
+type CPageMarker struct {
+	Value int `json:"value"`
+}
+
+// OrderedPages returns the page IDs in on-device display order. It prefers the
+// modern cPages list (skipping deleted pages) and falls back to the legacy flat
+// Pages array for older documents.
+func (c Content) OrderedPages() []string {
+	if len(c.CPages.Pages) == 0 {
+		return c.Pages
+	}
+	ids := make([]string, 0, len(c.CPages.Pages))
+	for _, p := range c.CPages.Pages {
+		// A page that was deleted on the device keeps its entry but carries a
+		// deleted marker with a positive value; skip those.
+		if p.Deleted != nil && p.Deleted.Value > 0 {
+			continue
+		}
+		ids = append(ids, p.ID)
+	}
+	return ids
 }
 
 // ExtraMetadata is a struct contained into a Content struct.

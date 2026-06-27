@@ -21,6 +21,10 @@ function formatBytes(bytes) {
 }
 
 export default function FileListViewer({ listStyle, files, onSelect, counter, selectedIds = [], onSelectItem }) {
+  // A folder restored from a breadcrumb/URL may not carry a children array;
+  // normalize so the table and grid never call `.filter` on undefined.
+  const safeFiles = Array.isArray(files) ? files : [];
+
   const onClickItem = (file) => {
     onSelect(file);
   }
@@ -121,7 +125,7 @@ export default function FileListViewer({ listStyle, files, onSelect, counter, se
   );
 
   const table = useReactTable({
-    data: files,
+    data: safeFiles,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -136,7 +140,7 @@ export default function FileListViewer({ listStyle, files, onSelect, counter, se
     },
   });
 
-  const gridFolderItems = files.filter(file => !file.isLeaf).map(file =>
+  const gridFolderItems = safeFiles.filter(file => !file.isLeaf).map(file =>
     <div className="filegrid-folder-item" key={file.id}>
       <input
         type="checkbox"
@@ -152,7 +156,7 @@ export default function FileListViewer({ listStyle, files, onSelect, counter, se
     </div>
   );
 
-  const gridFileItems = files.filter(file => file.isLeaf).map(file =>
+  const gridFileItems = safeFiles.filter(file => file.isLeaf).map(file =>
     <div className="filegrid-file-item" key={file.id}>
       <input
         type="checkbox"

@@ -187,7 +187,10 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 				}
 			}
 
-			log.Debugf("Content has %d pages", len(contentData.Pages))
+			// Use the authoritative page order (cPages for modern documents,
+			// legacy pages array otherwise) so pages render as on the tablet.
+			orderedPages := contentData.OrderedPages()
+			log.Debugf("Content has %d pages", len(orderedPages))
 
 			// Build map of page names to hashes
 			pageMap := make(map[string]string)
@@ -216,9 +219,9 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 			// overlay each annotation onto the matching background page.
 			var pages [][]byte
 			hasAnnotations := false
-			if len(contentData.Pages) > 0 {
-				pages = make([][]byte, len(contentData.Pages))
-				for i, pageName := range contentData.Pages {
+			if len(orderedPages) > 0 {
+				pages = make([][]byte, len(orderedPages))
+				for i, pageName := range orderedPages {
 					hash, ok := pageMap[pageName]
 					if !ok {
 						log.Debugf("Page %s has no .rm (un-annotated)", pageName)

@@ -66,7 +66,7 @@ func ArchiveFromHashDoc(doc *HashDoc, rs RemoteStorage) (*exporter.MyArchive, er
 		}
 	}
 
-	for pageIdx, p := range a.Content.Pages {
+	for pageIdx, p := range a.Content.OrderedPages() {
 		if hash, ok := pageMap[p]; ok {
 			log.Debug("page ", hash)
 			reader, err := rs.GetReader(hash)
