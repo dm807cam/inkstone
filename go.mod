@@ -68,3 +68,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+// Local fork of rmc-go (MIT) carrying a word-wrap patch for typed-text rendering
+// that upstream lacks. See third_party/rmc-go/PATCHES.md.
+replace github.com/joagonca/rmc-go => ./third_party/rmc-go
