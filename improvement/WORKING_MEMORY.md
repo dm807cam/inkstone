@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-06-26 on commit 158a57b (branch master). Drift since 3e05326: PRs #6–#11 merged (UI-lint fix #6, plus the LLM "Convert to text" HWR feature #7–#11)._
+_Last measured: 2026-06-27 on commit ac5456c (branch master). Drift since 158a57b: PR #13 merged (LoadBlob FD-leak fix). All gate metrics unchanged from last run._
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -35,8 +35,9 @@ This is a build-ordering artifact, not a code regression.
 
 ## Budget tally (current month)
 - Month: 2026-06
-- Increments merged: 3 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885)
-- PRs open: 1 (#13 — LoadBlob FD-leak fix for #12, awaiting human review)
+- Increments merged: 4 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
+  PR #13 → master @ac5456c — LoadBlob FD-leak fix)
+- PRs open: 1 (#15 — screenshare nil-map panic fix for #14, awaiting human review)
 - Approx. tokens used: n/a (monthly_token_budget = 0, no cap)
 
 ## Metric trend (for diminishing-returns detection)
@@ -53,6 +54,14 @@ _Most recent increments and their effect on the targeted metric._
   (no-explicit-any), `Integrations/index.tsx` dropped unused `e` param (no-unused-vars).
   `pnpm -C ui run lint` now exits 0; build/go vet/go test stay green; no behavior change.
   PR #6 for #5, branch auto-improve/5-ui-lint. (Axis switched away from security/robustness as planned.)
+- 2026-06-27 — axis: security/robustness + correctness — Δ: fixed a nil-map-write panic in
+  `screenshareSendAnswer` (`internal/ui/handlers.go`): the client `payload` was unmarshalled into a
+  nil map with the error ignored, then written to — a missing/null/non-object payload panicked on
+  untrusted input. Now validated up front (400 before forwarding); happy path still 202. +1 new test
+  file (3 reject cases + 1 accept). PR #15 for #14, branch auto-improve/14-screenshare-payload-panic.
+  (4th security/robustness loop increment overall; feature PRs #7–#11 interleaved, so not a pure run
+  of this axis — still finding distinct real bugs, no diminishing returns. If the NEXT increment also
+  lands here, deliberately switch axes per cadence.diminishing_returns_window=5.)
 - 2026-06-26 — axis: security/robustness + correctness — Δ: fixed a file-descriptor leak in
   `FileSystemStorage.LoadBlob` (closed `osFile` on the crc/seek error paths; success path returns it
   as the reader, so no blanket defer) + added 2 unit tests for the previously-untested `LoadBlob`.
@@ -72,9 +81,21 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 - 2026-06-24 — Convention: outbound `http.Client`s carry a 30s timeout (originated in
   `internal/integrations/ics.go:98`). New outbound calls should match this.
 - 2026-06-24 — Default branch is `master` (not `main`); treat `master` as the protected branch.
+- 2026-06-27 — Testing gin handlers directly (gin.CreateTestContext, no engine/Recovery): `c.Status(code)`
+  is buffered and NOT flushed to the httptest recorder unless a body is written, so assert on
+  `c.Writer.Status()` (gin's tracked status), not `recorder.Code`. `internal/ui` handlers can be unit
+  tested by constructing a minimal `&ReactAppWrapper{...}` with only the fields the code path touches
+  (e.g. `roomManager` via `screenshare.NewRoomManager()`, `h` via `hub.NewHub()`); leave `mqtt` nil to
+  skip the MQTT branch. A panic in a directly-called handler propagates to the test (no Recovery), which
+  makes nil-map/nil-deref regressions easy to pin.
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-06-27 — phase: auto — ticket #14 — outcome: PR #15 opened (reject missing/null/non-object
+  screenshare `payload` with 400 instead of panicking on a nil-map write; +1 ui test file) → master.
+  Empty backlog at start; scouted, filed #14, then implemented it. security/robustness+correctness
+  axis. branch auto-improve/14-screenshare-payload-panic. 2 files / +69/-2, all Go+UI gates green;
+  ui-audit still red (human-gated deps, untouched). Baseline refreshed to ac5456c (PR #13 merged).
 - 2026-06-26 — phase: auto — ticket #12 — outcome: PR #13 opened (close blob file on LoadBlob
   error paths → fix FD leak; +2 LoadBlob unit tests) → master. Empty backlog at start; filed #12
   during scouting then implemented it. security/robustness+correctness axis. branch
