@@ -944,10 +944,16 @@ func (app *ReactAppWrapper) screenshareSendAnswer(c *gin.Context) {
 		return
 	}
 
+	// The signaling payload must be a JSON object. A missing, null, or non-object payload
+	// leaves inner nil and would panic on the map write below, so reject it before forwarding.
+	var inner map[string]interface{}
+	if err := json.Unmarshal(msg.Payload, &inner); err != nil || inner == nil {
+		badReq(c, "invalid payload")
+		return
+	}
+
 	app.roomManager.AddDirect(roomID, clientID, msg.TargetClientID, msg.Payload)
 
-	var inner map[string]interface{}
-	json.Unmarshal(msg.Payload, &inner)
 	inner["sourceDeviceID"] = clientID
 	app.h.NotifyScreenshare(uid, clientID, inner)
 
