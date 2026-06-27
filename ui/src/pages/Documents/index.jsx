@@ -176,6 +176,13 @@ export default function DocumentList() {
       id: parentItem.id,
       data: parentItem,
       isLeaf: !parentItem.isFolder,
+      // Map children so navigating back to this folder via a breadcrumb
+      // renders its contents instead of passing `undefined` to the file list.
+      children: (parentItem.children || []).map(child => ({
+        id: child.id,
+        data: child,
+        isLeaf: !child.isFolder,
+      })),
       isRoot: parentItem.id === 'root' || parentItem.id === 'trash',
       // Add a dummy toggle function for compatibility
       toggle: () => {},
