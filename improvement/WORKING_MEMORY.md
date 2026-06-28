@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-06-27 on commit ac5456c (branch master). Drift since 158a57b: PR #13 merged (LoadBlob FD-leak fix). All gate metrics unchanged from last run._
+_Last measured: 2026-06-28 on commit 77d4f40 (origin/master). Drift since ac5456c: PRs #15 (screenshare payload panic) & #16 (notebook nav/page-order) merged + the HWR text-wrap fix (v0.0.40). All gate metrics unchanged from last run (tests PASS, go vet clean)._
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -35,13 +35,22 @@ This is a build-ordering artifact, not a code regression.
 
 ## Budget tally (current month)
 - Month: 2026-06
-- Increments merged: 4 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
-  PR #13 → master @ac5456c — LoadBlob FD-leak fix)
-- PRs open: 1 (#15 — screenshare nil-map panic fix for #14, awaiting human review)
+- Increments merged: 5 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
+  PR #13 → master @ac5456c — LoadBlob FD-leak fix; PR #15 → master — screenshare payload panic)
+- PRs open: 1 (#18 — root-blob FD-leak fix for #17, draft, awaiting human review)
 - Approx. tokens used: n/a (monthly_token_budget = 0, no cap)
 
 ## Metric trend (for diminishing-returns detection)
 _Most recent increments and their effect on the targeted metric._
+- 2026-06-28 — axis: code cleanliness (dedup) + correctness — Δ: fixed an FD leak on the device-sync
+  hot path — `syncGetRootV3`/`syncGetRootV4` (`internal/app/handlers.go`) read the root blob via
+  `LoadBlob` (an `io.ReadCloser` the caller owns) with `io.ReadAll` but never `Close()`d it, while
+  the identical `blobStorageRead`/`GetRootIndex` both defer Close. Extracted a `loadRootHash` helper
+  that loads+reads+ALWAYS closes, returning `fs.ErrorNotFound` verbatim so V3 (404) / V4 (200) keep
+  their new-account behaviour; removes the copy-paste that caused the leak. +2 tests (close-count guard
+  that fails pre-fix + not-found behaviour). 2 files / +124/-19. issue #17; branch
+  auto-improve/17-root-blob-fd-leak. PR #18 (draft). Deliberately
+  switched off the pure security/robustness axis per the window=5 note; this increment is dedup-led.
 - 2026-06-24 — axis: security/robustness — Δ: closed 2 missing-timeout call sites + 1 response-body
   leak; added webhook test coverage (suite stays green) — PR: #1 branch auto-improve/1-http-timeouts
   (merged as PR #2 → master)
@@ -91,6 +100,12 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-06-28 — phase: auto — ticket #17 (filed this run) — outcome: PR #18 opened (draft) → master.
+  Empty backlog at start; scouted, filed #17, implemented it. Closed an FD leak in syncGetRootV3/V4
+  by extracting a `loadRootHash` helper that always closes the LoadBlob reader (dedup removes the
+  copy-paste that dropped the close). 2 files / +124/-19; go test + go vet + gofmt all green; new
+  close-count test fails pre-fix, passes after (anti-reward-hacking verified). NOTE: GitHub MCP token
+  expired mid-run; recovered after a brief retry, so #17/#18 went through. Baseline → 77d4f40 (#15/#16).
 - 2026-06-27 — phase: auto — ticket #14 — outcome: PR #15 opened (reject missing/null/non-object
   screenshare `payload` with 400 instead of panicking on a nil-map write; +1 ui test file) → master.
   Empty backlog at start; scouted, filed #14, then implemented it. security/robustness+correctness
