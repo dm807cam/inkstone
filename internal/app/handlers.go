@@ -809,22 +809,33 @@ func crcJSON(c *gin.Context, status int, msg any) {
 	c.Data(status, "application/json", b)
 }
 
+// loadRootHash loads the user's root index blob and returns its hash and
+// generation. It always closes the blob reader returned by LoadBlob, whose
+// underlying file the caller owns (see blobStorageRead / GetRootIndex for the
+// same contract). fs.ErrorNotFound is returned verbatim so callers can apply
+// their own new-account handling.
+func (app *App) loadRootHash(uid string) (hash string, generation int64, err error) {
+	reader, generation, _, _, err := app.blobStorer.LoadBlob(uid, RootHash)
+	if err != nil {
+		return "", generation, err
+	}
+	defer reader.Close()
+
+	roothash, err := io.ReadAll(reader)
+	if err != nil {
+		return "", generation, err
+	}
+	return string(roothash), generation, nil
+}
+
 func (app *App) syncGetRootV3(c *gin.Context) {
 	uid := userID(c)
-	reader, generation, _, _, err := app.blobStorer.LoadBlob(uid, RootHash)
+	roothash, generation, err := app.loadRootHash(uid)
 	if err == fs.ErrorNotFound {
 		log.Warn("No root file found, assuming this is a new account")
 		c.JSON(http.StatusNotFound, gin.H{"message": "root not found"})
 		return
 	}
-
-	if err != nil {
-		log.Error(err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-
-	roothash, err := io.ReadAll(reader)
 	if err != nil {
 		log.Error(err)
 		c.AbortWithStatus(http.StatusInternalServerError)
@@ -833,13 +844,13 @@ func (app *App) syncGetRootV3(c *gin.Context) {
 
 	c.JSON(http.StatusOK, messages.SyncRootV3Response{
 		Generation: generation,
-		Hash:       string(roothash),
+		Hash:       roothash,
 	})
 }
 
 func (app *App) syncGetRootV4(c *gin.Context) {
 	uid := userID(c)
-	reader, generation, _, _, err := app.blobStorer.LoadBlob(uid, RootHash)
+	roothash, generation, err := app.loadRootHash(uid)
 	if err == fs.ErrorNotFound {
 		log.Warn("No root file found, assuming this is a new account")
 		crcJSON(c, http.StatusOK, messages.SyncRootV4Response{
@@ -847,22 +858,15 @@ func (app *App) syncGetRootV4(c *gin.Context) {
 		})
 		return
 	}
-
 	if err != nil {
 		log.Error(err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
-	roothash, err := io.ReadAll(reader)
-	if err != nil {
-		log.Error(err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
 	crcJSON(c, http.StatusOK, messages.SyncRootV4Response{
 		Generation:    generation,
-		Hash:          string(roothash),
+		Hash:          roothash,
 		SchemaVersion: SchemaVersion,
 	})
 }
