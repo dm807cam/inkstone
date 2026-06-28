@@ -136,15 +136,26 @@ func (l *LLMClient) prompt() string {
 	return p
 }
 
-// transcribe sends the rendered image to the vision model and returns the recognized text.
+// transcribe sends the rendered image to the vision model and returns the recognized text,
+// using the configured on-device conversion prompt.
 func (l *LLMClient) transcribe(pngBytes []byte) (string, error) {
+	return l.Transcribe(pngBytes, l.prompt())
+}
+
+// Transcribe sends a rendered image to the configured vision model and returns the
+// recognized text, using the given prompt verbatim. Exported so the notebook OCR export
+// can drive the same model with plain-text or Markdown-specific instructions.
+func (l *LLMClient) Transcribe(pngBytes []byte, prompt string) (string, error) {
+	if l.URL == "" || l.Model == "" {
+		return "", fmt.Errorf("llm hwr not configured: a base URL and model are required")
+	}
 	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes)
 	reqBody := chatRequest{
 		Model: l.Model,
 		Messages: []chatMessage{{
 			Role: "user",
 			Content: []contentPart{
-				{Type: "text", Text: l.prompt()},
+				{Type: "text", Text: prompt},
 				{Type: "image_url", ImageURL: &imageURL{URL: dataURI}},
 			},
 		}},

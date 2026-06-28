@@ -281,11 +281,19 @@ func (app *ReactAppWrapper) getDocument(c *gin.Context) {
 
 	defer reader.Close()
 
-	if exportType == "rmdoc" {
+	contentType := "application/octet-stream"
+	switch exportType {
+	case "rmdoc":
 		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.rmdoc\"", docid))
+	case "txt":
+		contentType = "text/plain; charset=utf-8"
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.txt\"", docid))
+	case "md":
+		contentType = "text/markdown; charset=utf-8"
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.md\"", docid))
 	}
 
-	c.DataFromReader(http.StatusOK, -1, "application/octet-stream", reader, nil)
+	c.DataFromReader(http.StatusOK, -1, contentType, reader, nil)
 }
 
 func (app *ReactAppWrapper) getDocumentMetadata(c *gin.Context) {
