@@ -67,6 +67,22 @@ Each user can point "Convert to text" at their own vision model from the web UI 
 enables it, their settings take precedence over the instance-wide configuration above; otherwise
 the server default is used. Stored API keys are never sent back to the browser.
 
+### OCR export (text / Markdown)
+
+When the LLM backend is configured, the document viewer's download menu gains **Export text
+(.txt)** and **Export Markdown (.md)** options. Choosing one runs the same vision model over
+every page of the notebook: each page's handwriting is rendered to an image, transcribed, and the
+results are concatenated into a single download.
+
+- **Text** produces plain text, preserving line breaks and reading order.
+- **Markdown** asks the model to mirror the visual structure of the notes — headings, bullet and
+  numbered lists, checkboxes, emphasis, and tables — as GitHub-flavored Markdown, with a thematic
+  break (`---`) between pages.
+
+OCR export requires `RMAPI_HWR_LLM_URL` and `RMAPI_HWR_LLM_MODEL` to be set, and currently
+supports v6 (software 3.x) notebooks. The same privacy note applies: a local Ollama endpoint keeps
+your handwriting on your machine, while a hosted endpoint receives each rendered page image.
+
 ## Email settings
 
 To be able to send email from your reMarkable, fill the following variables:

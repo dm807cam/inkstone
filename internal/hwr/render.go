@@ -61,7 +61,12 @@ const defaultDPI = 96.0
 // position, so each conversion lands where its handwriting was instead of overwriting the
 // previous one. Returns false when there are no strokes.
 func (b *iinkBatch) boundingBoxMM() (boundingBox, bool) {
-	minX, minY, maxX, maxY, points := bounds(b.allStrokes())
+	raw := b.allStrokes()
+	strokes := make([]Stroke, len(raw))
+	for i, s := range raw {
+		strokes[i] = Stroke{X: s.X, Y: s.Y}
+	}
+	minX, minY, maxX, maxY, points := boundsOf(strokes)
 	if points == 0 {
 		return boundingBox{}, false
 	}
@@ -89,15 +94,32 @@ func renderStrokesPNG(iinkJSON []byte) ([]byte, error) {
 	return renderStrokes(&batch)
 }
 
-// renderStrokes rasterizes a parsed batch's strokes to a PNG: black ink on a white
-// background, scaled so the longer side is at most renderMaxDim.
+// Stroke is a single pen stroke as parallel X/Y coordinate arrays in an arbitrary but
+// consistent coordinate space. It lets callers outside the iink path (e.g. notebook OCR
+// export, which extracts strokes from parsed .rm pages) reuse the same rasterizer.
+type Stroke struct {
+	X []float64
+	Y []float64
+}
+
+// renderStrokes rasterizes a parsed iink batch's strokes to a PNG.
 func renderStrokes(batch *iinkBatch) ([]byte, error) {
-	strokes := batch.allStrokes()
+	raw := batch.allStrokes()
+	strokes := make([]Stroke, len(raw))
+	for i, s := range raw {
+		strokes[i] = Stroke{X: s.X, Y: s.Y}
+	}
+	return RenderStrokesToPNG(strokes)
+}
+
+// RenderStrokesToPNG rasterizes a set of strokes to a PNG: black ink on a white
+// background, scaled so the longer side is at most renderMaxDim.
+func RenderStrokesToPNG(strokes []Stroke) ([]byte, error) {
 	if len(strokes) == 0 {
-		return nil, fmt.Errorf("no strokes in iink batch")
+		return nil, fmt.Errorf("no strokes to render")
 	}
 
-	minX, minY, maxX, maxY, points := bounds(strokes)
+	minX, minY, maxX, maxY, points := boundsOf(strokes)
 	if points == 0 {
 		return nil, fmt.Errorf("no points in strokes")
 	}
@@ -137,8 +159,8 @@ func renderStrokes(batch *iinkBatch) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// bounds returns the coordinate extent and total point count across all strokes.
-func bounds(strokes []iinkStroke) (minX, minY, maxX, maxY float64, points int) {
+// boundsOf returns the coordinate extent and total point count across all strokes.
+func boundsOf(strokes []Stroke) (minX, minY, maxX, maxY float64, points int) {
 	minX, minY = math.Inf(1), math.Inf(1)
 	maxX, maxY = math.Inf(-1), math.Inf(-1)
 	for _, s := range strokes {

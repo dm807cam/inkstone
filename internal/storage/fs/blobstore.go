@@ -18,6 +18,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/archive"
 	"github.com/ddvk/rmfakecloud/internal/common"
 	"github.com/ddvk/rmfakecloud/internal/config"
+	"github.com/ddvk/rmfakecloud/internal/hwr"
 	"github.com/ddvk/rmfakecloud/internal/storage"
 	"github.com/ddvk/rmfakecloud/internal/storage/exporter"
 	"github.com/ddvk/rmfakecloud/internal/storage/models"
@@ -331,6 +332,61 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 	}
 
 	return reader, err
+}
+
+// ExportOCR runs vision-model OCR over every page of a document and streams a single
+// plain-text or Markdown transcription of the handwriting. format is "txt" or "md".
+// It requires the LLM handwriting backend to be configured (a base URL and model).
+func (fs *FileSystemStorage) ExportOCR(uid, docid, format string) (io.ReadCloser, error) {
+	if fs.Cfg == nil || fs.Cfg.HWRLLMURL == "" || fs.Cfg.HWRLLMModel == "" {
+		return nil, fmt.Errorf("OCR export requires the LLM handwriting backend: set RMAPI_HWR_LLM_URL and RMAPI_HWR_LLM_MODEL")
+	}
+
+	tree, err := fs.GetCachedTree(uid)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := tree.FindDoc(docid)
+	if err != nil {
+		return nil, err
+	}
+	ls := fs.BlobStorage(uid)
+
+	// ArchiveFromHashDoc already extracts the raw v6 page bytes (V6PageData), keyed by
+	// their index into the authoritative page order, so reuse it instead of re-walking
+	// the blob entries. We only need the ink, so close the imported-PDF payload reader.
+	arch, err := models.ArchiveFromHashDoc(doc, ls)
+	if err != nil {
+		return nil, err
+	}
+	if arch.PayloadReader != nil {
+		arch.PayloadReader.Close()
+	}
+
+	ordered := arch.Content.OrderedPages()
+	pages := make([][]byte, len(ordered))
+	for idx, data := range arch.V6PageData {
+		if idx >= 0 && idx < len(pages) {
+			pages[idx] = data
+		}
+	}
+
+	ocrFormat := exporter.OCRFormatTxt
+	if format == string(exporter.OCRFormatMarkdown) {
+		ocrFormat = exporter.OCRFormatMarkdown
+	}
+	client := hwr.NewLLMClient(fs.Cfg)
+
+	reader, writer := io.Pipe()
+	go func() {
+		if err := exporter.OCRDocument(pages, ocrFormat, client, writer); err != nil {
+			log.Errorf("OCR export failed for doc %s: %v", docid, err)
+			writer.CloseWithError(err)
+			return
+		}
+		writer.Close()
+	}()
+	return reader, nil
 }
 
 // UpdateBlobDocument updates metadata

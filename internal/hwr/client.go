@@ -33,15 +33,25 @@ type Recognizer interface {
 // "llm" routes to a self-hosted vision model; anything else uses MyScript (the default).
 func NewRecognizer(cfg *config.Config) Recognizer {
 	if cfg != nil && cfg.HWRProvider == "llm" {
-		return &LLMClient{
-			URL:    cfg.HWRLLMURL,
-			Key:    cfg.HWRLLMKey,
-			Model:  cfg.HWRLLMModel,
-			Prompt: cfg.HWRLLMPrompt,
-			Lang:   cfg.HWRLangOverride,
-		}
+		return NewLLMClient(cfg)
 	}
 	return &HWRClient{Cfg: cfg}
+}
+
+// NewLLMClient builds a vision-model OCR client from configuration. It is used both for
+// on-device handwriting conversion and for notebook OCR export, independent of which
+// HWRProvider is selected (export always needs the LLM backend).
+func NewLLMClient(cfg *config.Config) *LLMClient {
+	if cfg == nil {
+		return &LLMClient{}
+	}
+	return &LLMClient{
+		URL:    cfg.HWRLLMURL,
+		Key:    cfg.HWRLLMKey,
+		Model:  cfg.HWRLLMModel,
+		Prompt: cfg.HWRLLMPrompt,
+		Lang:   cfg.HWRLangOverride,
+	}
 }
 
 // HWRClient forwards the iink-batch payload to the MyScript cloud verbatim.

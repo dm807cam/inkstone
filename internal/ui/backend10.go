@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -82,6 +83,9 @@ func (d *backend10) GetDocumentTree(uid string) (tree *viewmodel.DocumentTree, e
 	return viewmodel.DocTreeFromRawMetadata(docs), nil
 }
 func (d *backend10) Export(uid, docID, exporttype string, opt storage.ExportOption) (stream io.ReadCloser, err error) {
+	if exporttype == "txt" || exporttype == "md" {
+		return nil, fmt.Errorf("OCR export is only available for sync15 (v6) documents")
+	}
 	r, err := d.documentHandler.ExportDocument(uid, docID, exporttype, opt)
 	if err != nil {
 		return nil, err

@@ -146,6 +146,20 @@ export default function FileViewer({ file, onSelect }) {
       .catch(() => {});
   };
 
+  // OCR exports: the server transcribes the handwriting on every page with the
+  // configured vision model and returns plain text or structured Markdown.
+  const onDownloadText = () => {
+    apiservice.download(data.id, 'txt')
+      .then(blob => triggerDownload(blob, data.name + '.txt'))
+      .catch(() => {});
+  };
+
+  const onDownloadMarkdown = () => {
+    apiservice.download(data.id, 'md')
+      .then(blob => triggerDownload(blob, data.name + '.md'))
+      .catch(() => {});
+  };
+
   const options = useMemo(() => ({ worker: new pdfjs.PDFWorker() }), []);
 
   return (
@@ -169,6 +183,10 @@ export default function FileViewer({ file, onSelect }) {
           <Dropdown.Menu>
             <Dropdown.Item onClick={onDownloadPdf}>Download PDF</Dropdown.Item>
             <Dropdown.Item onClick={onDownloadRmdoc}>Download .rmdoc</Dropdown.Item>
+            <Dropdown.Divider />
+            <Dropdown.Header>OCR (handwriting)</Dropdown.Header>
+            <Dropdown.Item onClick={onDownloadText}>Export text (.txt)</Dropdown.Item>
+            <Dropdown.Item onClick={onDownloadMarkdown}>Export Markdown (.md)</Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown>
       </div>

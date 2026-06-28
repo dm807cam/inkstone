@@ -6,6 +6,7 @@
 - Handle messaging integrations (a88aee6ea5ad846cd8aaab2bcbe2f82d2898e5f4)
 - [Webhook messaging integration](https://ddvk.github.io/rmfakecloud/usage/integrations/#messaging-webhook) (479887ee4b335cd99f8a4cb4afeb7577681a217b)
 - New option: `RMAPI_HWR_LANG_OVERRIDE` to override the language specified in myScript requests (#352)
+- OCR export: download a notebook's handwriting as plain text (`.txt`) or structured Markdown (`.md`) using the configured LLM vision backend
 
 ## Internal change
 
