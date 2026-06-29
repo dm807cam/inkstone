@@ -371,22 +371,26 @@ func (fs *FileSystemStorage) ExportOCR(uid, docid, format string) (io.ReadCloser
 		}
 	}
 
+	return ocrPagesToReader(pages, format, hwr.NewLLMClient(fs.Cfg))
+}
+
+// ocrPagesToReader transcribes the given v6 pages and returns the whole document as a
+// readable. OCRDocument buffers the entire transcription and emits it in a single write,
+// so it is run synchronously here (no io.Pipe/goroutine): that lets a transcription failure
+// propagate as an error to the caller — and thus to an HTTP error status — instead of being
+// hidden behind an already-committed 200 with an empty body. Split out so the wiring can be
+// unit-tested with a fake Transcriber.
+func ocrPagesToReader(pages [][]byte, format string, t exporter.Transcriber) (io.ReadCloser, error) {
 	ocrFormat := exporter.OCRFormatTxt
 	if format == string(exporter.OCRFormatMarkdown) {
 		ocrFormat = exporter.OCRFormatMarkdown
 	}
-	client := hwr.NewLLMClient(fs.Cfg)
 
-	reader, writer := io.Pipe()
-	go func() {
-		if err := exporter.OCRDocument(pages, ocrFormat, client, writer); err != nil {
-			log.Errorf("OCR export failed for doc %s: %v", docid, err)
-			writer.CloseWithError(err)
-			return
-		}
-		writer.Close()
-	}()
-	return reader, nil
+	var buf bytes.Buffer
+	if err := exporter.OCRDocument(pages, ocrFormat, t, &buf); err != nil {
+		return nil, err
+	}
+	return io.NopCloser(&buf), nil
 }
 
 // UpdateBlobDocument updates metadata

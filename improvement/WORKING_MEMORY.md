@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-06-28 on commit 77d4f40 (origin/master). Drift since ac5456c: PRs #15 (screenshare payload panic) & #16 (notebook nav/page-order) merged + the HWR text-wrap fix (v0.0.40). All gate metrics unchanged from last run (tests PASS, go vet clean)._
+_Last measured: 2026-06-29 on commit f32faf8 (origin/master). Drift since 77d4f40: PR #18 (root-blob FD-leak fix, #17) merged + feature PR #19 (LLM OCR export of notebooks to .txt/.md — new files internal/storage/exporter/ocr.go, internal/hwr/render.go RenderStrokesToPNG/Transcribe, internal/storage/fs ExportOCR). All gate metrics unchanged (tests PASS, go vet clean, ui lint green, ui build PASS; ui audit still red/human-gated)._
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -35,13 +35,24 @@ This is a build-ordering artifact, not a code regression.
 
 ## Budget tally (current month)
 - Month: 2026-06
-- Increments merged: 5 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
-  PR #13 → master @ac5456c — LoadBlob FD-leak fix; PR #15 → master — screenshare payload panic)
-- PRs open: 1 (#18 — root-blob FD-leak fix for #17, draft, awaiting human review)
+- Increments merged: 6 (PR #2 @038fee7; PR #4 @3e05326; PR #6 @fae3885; PR #13 @ac5456c — LoadBlob
+  FD-leak; PR #15 — screenshare payload panic; PR #18 — root-blob FD-leak #17, now merged @604f534)
+- PRs open: 1 (#21 — OCR-export error-status fix for #20, draft, awaiting human review)
 - Approx. tokens used: n/a (monthly_token_budget = 0, no cap)
 
 ## Metric trend (for diminishing-returns detection)
 _Most recent increments and their effect on the targeted metric._
+- 2026-06-29 — axis: correctness/robustness + code cleanliness — Δ: fixed an error-reporting bug in the
+  brand-new OCR-export feature (#19). `FileSystemStorage.ExportOCR` streamed via io.Pipe+goroutine, but
+  `OCRDocument` buffers the whole transcription and writes it in ONE final write — so the pipe gave zero
+  streaming and a runtime transcription failure (LLM down/timeout, or nothing transcribable) hit
+  `writer.CloseWithError` AFTER `getDocument`'s `DataFromReader` had already committed HTTP 200 → client
+  got 200 + empty body, error only in the log. Ran the OCR synchronously into a buffer so the error
+  propagates and the handler returns a real 500; removed the goroutine+pipe (simplification). Extracted
+  `ocrPagesToReader` so the wiring is unit-testable with a fake Transcriber. +2 tests (error-propagation
+  test FAILS pre-fix / PASSES post-fix — anti-reward-hacking verified; + success-path test). 2 files
+  / +88/-11. issue #20; branch auto-improve/20-ocr-export-error-status; PR #21 (draft). No signature/API
+  change, no deps. (Switched off the recent FD-leak/panic security run onto a correctness+cleanliness fix.)
 - 2026-06-28 — axis: code cleanliness (dedup) + correctness — Δ: fixed an FD leak on the device-sync
   hot path — `syncGetRootV3`/`syncGetRootV4` (`internal/app/handlers.go`) read the root blob via
   `LoadBlob` (an `io.ReadCloser` the caller owns) with `io.ReadAll` but never `Close()`d it, while
@@ -100,6 +111,13 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-06-29 — phase: auto — ticket #20 (filed this run) — outcome: PR #21 opened (draft) → master.
+  Empty backlog at start; baseline drift reconciled (PRs #18 & feature #19 merged; new master f32faf8).
+  Scouted the new OCR-export feature (#19), found ExportOCR's io.Pipe+goroutine hides runtime
+  transcription failures behind an already-committed HTTP 200 (OCRDocument never streams — it writes
+  once at the end). Made it synchronous so errors surface as a 500, removed the pipe, extracted a
+  testable `ocrPagesToReader` helper. 2 files / +88/-11; go test + go vet + gofmt all green; new
+  error-propagation test fails pre-fix, passes after (anti-reward-hacking verified). UI untouched.
 - 2026-06-28 — phase: auto — ticket #17 (filed this run) — outcome: PR #18 opened (draft) → master.
   Empty backlog at start; scouted, filed #17, implemented it. Closed an FD leak in syncGetRootV3/V4
   by extracting a `loadRootHash` helper that always closes the LoadBlob reader (dedup removes the
