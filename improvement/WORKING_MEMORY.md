@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-06-28 on commit 77d4f40 (origin/master). Drift since ac5456c: PRs #15 (screenshare payload panic) & #16 (notebook nav/page-order) merged + the HWR text-wrap fix (v0.0.40). All gate metrics unchanged from last run (tests PASS, go vet clean)._
+_Last measured: 2026-06-30 on commit f32faf8 (origin/master). Drift since 77d4f40: PR #18 (root-blob FD-leak fix, #17) and PR #19 (LLM OCR export of notebooks to .txt/.md) merged. All gate metrics unchanged from last run (tests PASS across all pkgs, go vet clean, ui audit still RED — human-gated deps)._
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -35,13 +35,29 @@ This is a build-ordering artifact, not a code regression.
 
 ## Budget tally (current month)
 - Month: 2026-06
-- Increments merged: 5 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
-  PR #13 → master @ac5456c — LoadBlob FD-leak fix; PR #15 → master — screenshare payload panic)
-- PRs open: 1 (#18 — root-blob FD-leak fix for #17, draft, awaiting human review)
+- Increments merged: 6 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
+  PR #13 → master @ac5456c — LoadBlob FD-leak fix; PR #15 → master — screenshare payload panic;
+  PR #18 → master @604f534 — root-blob FD-leak fix for #17)
+- PRs open: 1 (#21 — OCR export error-status fix for #20, draft, awaiting human review)
+- This run (2026-06-30): grooming only — filed tickets #22 (export filename) and #23 (metadata
+  stub); 0 fix PRs (max_iterations_per_run=1 respected; the only prior backlog item #20 is already
+  covered by the open draft PR #21).
 - Approx. tokens used: n/a (monthly_token_budget = 0, no cap)
 
 ## Metric trend (for diminishing-returns detection)
 _Most recent increments and their effect on the targeted metric._
+- 2026-06-30 — axis: grooming (no metric movement) — Δ: scouting pass over the newest code (the #19
+  LLM OCR-export feature: `internal/storage/exporter/ocr.go`, `internal/hwr/{llm,render}.go`,
+  `internal/storage/fs/blobstore.go` `ExportOCR`, `internal/ui/handlers.go` `getDocument`). Verified
+  the one real OCR bug is already in flight (PR #21 for #20) and that OCR export correctly honors
+  cPages page order (`V6PageData` is keyed by index into `Content.OrderedPages()` in
+  `ArchiveFromHashDoc`, and `ExportOCR` maps `pages[idx]` the same way — no ordering regression vs
+  the #16 cPages fix). Filed two lower-priority tickets: #22 (export `Content-Disposition` uses the
+  opaque docid, not the visible name — only affects non-browser API clients; the web UI overrides
+  the filename client-side) and #23 (the routed `/documents/:docid/metadata` endpoint is a stub
+  returning `200 "TODO"`). No fix PR this run — no high-confidence, in-budget, non-human-gated
+  defect remained un-addressed. (security/robustness axis intentionally not pursued: over-mined per
+  window=5; the new findings are correctness/clean-code.)
 - 2026-06-28 — axis: code cleanliness (dedup) + correctness — Δ: fixed an FD leak on the device-sync
   hot path — `syncGetRootV3`/`syncGetRootV4` (`internal/app/handlers.go`) read the root blob via
   `LoadBlob` (an `io.ReadCloser` the caller owns) with `io.ReadAll` but never `Close()`d it, while
@@ -100,6 +116,14 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-06-30 — phase: auto — outcome: GROOMING (filed #22 + #23), no fix PR. At run start the only
+  open auto-improve ticket (#20) was already covered by open draft PR #21, so there was no
+  un-addressed backlog item to implement. Sensed baseline on f32faf8: `go test ./...` PASS (all pkgs),
+  `go vet ./...` clean — unchanged vs recorded baseline (drift = #18 + #19 merged). Scouted the new
+  #19 OCR-export feature: confirmed page ordering honors cPages and the render/transcribe path is
+  sound; the one real bug is already in PR #21. Filed #22 (export filename = opaque docid; low-pri,
+  UI-overridden) and #23 (dead `/metadata` stub → `200 "TODO"`). WORKING_MEMORY update committed on
+  branch auto-improve/22-groom-export-filename → draft PR (no direct master push per CLAUDE.md #1).
 - 2026-06-28 — phase: auto — ticket #17 (filed this run) — outcome: PR #18 opened (draft) → master.
   Empty backlog at start; scouted, filed #17, implemented it. Closed an FD leak in syncGetRootV3/V4
   by extracting a `loadRootHash` helper that always closes the LoadBlob reader (dedup removes the
