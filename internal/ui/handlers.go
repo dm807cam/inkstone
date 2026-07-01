@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/common"
@@ -281,19 +282,95 @@ func (app *ReactAppWrapper) getDocument(c *gin.Context) {
 
 	defer reader.Close()
 
+	// Name the download by the document's visible name when resolvable, else the
+	// opaque docid. Non-browser clients (curl/rmapi) honor Content-Disposition.
+	name := docid
+	if tree, terr := backend.GetDocumentTree(uid); terr == nil {
+		if n := documentName(tree, docid); n != "" {
+			name = n
+		}
+	}
+
 	contentType := "application/octet-stream"
 	switch exportType {
 	case "rmdoc":
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.rmdoc\"", docid))
+		c.Header("Content-Disposition", contentDisposition(name, ".rmdoc"))
 	case "txt":
 		contentType = "text/plain; charset=utf-8"
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.txt\"", docid))
+		c.Header("Content-Disposition", contentDisposition(name, ".txt"))
 	case "md":
 		contentType = "text/markdown; charset=utf-8"
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.md\"", docid))
+		c.Header("Content-Disposition", contentDisposition(name, ".md"))
 	}
 
 	c.DataFromReader(http.StatusOK, -1, contentType, reader, nil)
+}
+
+// documentName returns the visible name of the document with the given id
+// (walking the tree, including trash), or "" if not found.
+func documentName(tree *viewmodel.DocumentTree, docid string) string {
+	if n := findDocumentName(tree.Entries, docid); n != "" {
+		return n
+	}
+	return findDocumentName(tree.Trash, docid)
+}
+
+func findDocumentName(entries []viewmodel.Entry, docid string) string {
+	for _, e := range entries {
+		switch v := e.(type) {
+		case *viewmodel.Document:
+			if v.ID == docid {
+				return v.Name
+			}
+		case *viewmodel.Directory:
+			if v.ID == docid {
+				return v.Name
+			}
+			if n := findDocumentName(v.Entries, docid); n != "" {
+				return n
+			}
+		}
+	}
+	return ""
+}
+
+// contentDisposition builds an RFC 6266 attachment header naming the download
+// "<name><ext>": an ASCII filename= fallback plus an RFC 5987 filename*=UTF-8”
+// parameter so non-ASCII titles survive intact.
+func contentDisposition(name, ext string) string {
+	full := name + ext
+	return fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", asciiFilename(full), rfc5987ValueChars(full))
+}
+
+// asciiFilename maps control chars, quotes, backslashes and non-ASCII runes to '_'.
+func asciiFilename(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f || r > 0x7f || r == '"' || r == '\\' {
+			b.WriteByte('_')
+		} else {
+			b.WriteByte(byte(r))
+		}
+	}
+	return b.String()
+}
+
+// rfc5987ValueChars percent-encodes s per RFC 5987 (attr-char set) for filename*.
+func rfc5987ValueChars(s string) string {
+	const upperhex = "0123456789ABCDEF"
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+			strings.IndexByte("!#$&+-.^_`|~", c) >= 0 {
+			b.WriteByte(c)
+		} else {
+			b.WriteByte('%')
+			b.WriteByte(upperhex[c>>4])
+			b.WriteByte(upperhex[c&0x0f])
+		}
+	}
+	return b.String()
 }
 
 func (app *ReactAppWrapper) getDocumentMetadata(c *gin.Context) {
@@ -982,4 +1059,3 @@ func (app *ReactAppWrapper) screenshareDeleteRoom(c *gin.Context) {
 	app.roomManager.DeleteAllForUser(uid)
 	c.Status(http.StatusNoContent)
 }
-
