@@ -8,7 +8,7 @@ to the repo via each PR (or directly when a run only grooms/records).
 > Tip: keep this file small. If it grows large, move resolved history to `improvement/ARCHIVE.md`.
 
 ## Current baseline
-_Last measured: 2026-07-01 on commit f32faf8 (origin/master). Drift since 77d4f40: PRs #18 (root-blob FD-leak, #17) & #19 (LLM OCR export) merged. All gate metrics unchanged (tests PASS, go vet clean; ui-audit still RED = human-gated deps)._
+_Last measured: 2026-07-02 on commit f3aca5f (origin/master). Drift since f32faf8: PRs #25 (export visible-name filename, #22) & #24 (grooming record) merged. All gate metrics unchanged (go test ./... PASS, go vet clean; ui-audit still RED = human-gated deps). Note: `gofmt -l internal cmd` lists 7 pre-existing files with formatting drift (app.go, staticfs.go, config.go, localfs.go, broker.go, version_test.go, models.go) — NOT loop-introduced; leave for a human, do not reformat unrelated files._
 
 | metric        | value                          | how measured                          |
 |---------------|--------------------------------|---------------------------------------|
@@ -36,8 +36,8 @@ This is a build-ordering artifact, not a code regression.
 ## Budget tally (current month)
 - Month: 2026-07
 - Increments merged (2026-06): 7 (PRs #2, #4, #6, #13, #15 → master; #18 root-blob FD-leak, #19 OCR export)
-- PRs open: #21 (OCR export error status, #20, draft) · #24 (2026-06-30 grooming record, draft) ·
-  #25 (this run — export visible-name filename, #22, draft)
+- PRs open: #21 (OCR export error status, #20) · #27 (this run — uploadDoc missing-meta panic→400, #26, draft)
+- Merged since last run: #24 (grooming record) & #25 (export visible-name filename) → master @f3aca5f
 - Month: 2026-06
 - Increments merged: 6 (PR #2 → master @038fee7; PR #4 → master @3e05326; PR #6 → master @fae3885;
   PR #13 → master @ac5456c — LoadBlob FD-leak fix; PR #15 → master — screenshare payload panic;
@@ -50,6 +50,18 @@ This is a build-ordering artifact, not a code regression.
 
 ## Metric trend (for diminishing-returns detection)
 _Most recent increments and their effect on the targeted metric._
+- 2026-07-02 — axis: correctness/robustness (guard parity) — Δ: `uploadDoc` (`internal/app/handlers.go`)
+  indexed `form.Value["meta"][0]` with no length guard, so a device multipart upload missing the
+  `meta` field panicked (→ HTTP 500 via gin Recovery + stack-trace log) instead of the intended 400.
+  The lone unguarded slice-index in the function: the same handler already guards `form.File["file"]`
+  (len<1→400), `uploadDocV2` guards its meta header, and the integration-message handler guards
+  `attachment`/`data`. Added the missing `len(form.Value["meta"]) < 1` guard (kept the present-but-empty
+  check) + 1 new test that POSTs a meta-less multipart form and asserts 400. Anti-reward-hacking:
+  the test panics (`index out of range [0] with length 0`) on the pre-fix handler and passes after
+  (verified via git-stash of the handler). 2 files / +61/-1. issue #26; branch
+  auto-improve/26-uploaddoc-meta-panic. PR #27 (draft). Note: robustness-adjacent but a distinct,
+  real, previously-unmined defect (a specific unguarded index), and it alternates with #22's
+  correctness/clean-code — not a repeat of the io.ReadAll-bounding/nil-map class. window=5 OK.
 - 2026-07-01 — axis: correctness/UX (clean-code) — Δ: `getDocument` (`internal/ui/handlers.go`) named
   `.rmdoc/.txt/.md` downloads by the opaque document UUID; non-browser clients (curl/rmapi) that honor
   `Content-Disposition` got files like `a1b2c3d4-….txt` instead of the visible notebook name. Resolve
@@ -129,6 +141,15 @@ _Durable choices worth remembering (e.g. "library X chosen over Y because …").
 
 ## Iteration log
 _One line per run. Newest at top._
+- 2026-07-02 — phase: auto — ticket #26 (filed this run) — outcome: PR #27 opened (draft) → master.
+  Sensed baseline on f3aca5f: `go test ./...` PASS, `go vet ./...` clean (built ui/dist first for the
+  embed) — unchanged vs recorded baseline; drift = #24 + #25 merged. Backlog at start: #20 (in flight
+  as PR #21), #23 (human-gated remove-vs-implement) — no non-gated, un-in-flight ticket, so scouted.
+  Found + filed #26: `uploadDoc` indexed `form.Value["meta"][0]` unguarded → panic/500 on a meta-less
+  multipart upload (the only unguarded slice-index in the function; siblings all guard). Implemented
+  the missing length guard + 1 test (panics pre-fix, 400 after). correctness/robustness axis. branch
+  auto-improve/26-uploaddoc-meta-panic. 2 files / +61/-1; go test + go vet + gofmt(my files) green;
+  ui-audit still red (human-gated deps, untouched). #23 left for a human; #20 covered by PR #21.
 - 2026-07-01 — phase: auto — ticket #22 — outcome: PR #25 opened (draft) → master. Backlog at start:
   #20 (in flight as draft PR #21), #22, #23 (#23 defers a remove-vs-implement choice to a human).
   Selected #22 (concrete, non-gated). Named exports by visible name w/ RFC 5987 filename* + docid

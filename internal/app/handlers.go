@@ -269,9 +269,17 @@ func (app *App) uploadDoc(c *gin.Context) {
 		return
 	}
 
+	// Guard the slice before indexing: a multipart form missing the 'meta' field
+	// yields an empty slice, so form.Value["meta"][0] would panic (500) instead of
+	// returning 400. Mirrors the 'file' guard below and uploadDocV2's meta-header guard.
+	if len(form.Value["meta"]) < 1 {
+		log.Warn(handlerLog, " missing 'meta'")
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 	meta := form.Value["meta"][0]
 	if meta == "" {
-		log.Warn(handlerLog, " missing 'meta'")
+		log.Warn(handlerLog, " empty 'meta'")
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
