@@ -26,6 +26,7 @@ const (
 	browserIDContextKey = "browserID"
 	isSync15Key         = "sync15"
 	docIDParam          = "docid"
+	versionIDParam      = "versionid"
 	intIDParam          = "intid"
 	uiLogger            = "[ui] "
 	ui10                = " [10] "
@@ -371,6 +372,56 @@ func rfc5987ValueChars(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// listDocumentVersions returns the restorable version history of a document,
+// newest first (sync15 only).
+func (app *ReactAppWrapper) listDocumentVersions(c *gin.Context) {
+	uid := userID(c)
+	docid := common.ParamS(docIDParam, c)
+	backend := app.getBackend(c)
+
+	versions, err := backend.ListVersions(uid, docid)
+	if err != nil {
+		log.Error(err)
+		badReq(c, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, versions)
+}
+
+// getDocumentVersion streams a single historical version of a document as a PDF
+// for previewing in the reader.
+func (app *ReactAppWrapper) getDocumentVersion(c *gin.Context) {
+	uid := userID(c)
+	docid := common.ParamS(docIDParam, c)
+	versionID := common.ParamS(versionIDParam, c)
+	backend := app.getBackend(c)
+
+	reader, err := backend.ExportVersion(uid, docid, versionID)
+	if err != nil {
+		log.Error(err)
+		badReq(c, err.Error())
+		return
+	}
+	defer reader.Close()
+
+	c.DataFromReader(http.StatusOK, -1, "application/pdf", reader, nil)
+}
+
+// restoreDocumentVersion reverts a document's content to an earlier version.
+func (app *ReactAppWrapper) restoreDocumentVersion(c *gin.Context) {
+	uid := userID(c)
+	docid := common.ParamS(docIDParam, c)
+	versionID := common.ParamS(versionIDParam, c)
+	backend := app.getBackend(c)
+
+	if err := backend.RestoreVersion(uid, docid, versionID); err != nil {
+		log.Error(err)
+		badReq(c, err.Error())
+		return
+	}
+	c.Status(http.StatusOK)
 }
 
 func (app *ReactAppWrapper) getDocumentMetadata(c *gin.Context) {

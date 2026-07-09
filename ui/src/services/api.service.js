@@ -163,6 +163,28 @@ class ApiServices {
       return r.json();
     });
   }
+
+  // Version history (sync15 only). listVersions returns the document's
+  // restorable versions newest-first; versionUrl points react-pdf at a specific
+  // version's PDF; restoreVersion reverts the document to an earlier version.
+  listVersions(id) {
+    return fetch(`${constants.ROOT_URL}/documents/${id}/versions`, {
+      method: "GET",
+      headers: this.header(),
+    }).then((r) => {
+      handleError(r);
+      return r.json();
+    });
+  }
+  versionUrl(id, versionId) {
+    return `${constants.ROOT_URL}/documents/${id}/versions/${versionId}`;
+  }
+  restoreVersion(id, versionId) {
+    return fetch(`${constants.ROOT_URL}/documents/${id}/versions/${versionId}/restore`, {
+      method: "POST",
+      headers: this.header(),
+    }).then((r) => handleError(r));
+  }
   updateuser(usr) {
     return fetch(`${constants.ROOT_URL}/users`, {
       method: "PUT",

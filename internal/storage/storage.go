@@ -62,3 +62,13 @@ type Document struct {
 	Name    string
 	Version int
 }
+
+// DocVersion is one historical generation of a document, reconstructed from the
+// account's root history (sync15). RootHash is the opaque handle the UI passes
+// back to preview or restore that version.
+type DocVersion struct {
+	RootHash   string    `json:"id"`
+	Generation int64     `json:"generation"`
+	Date       time.Time `json:"date"`
+	Size       int64     `json:"size"`
+}

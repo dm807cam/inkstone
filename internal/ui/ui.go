@@ -27,6 +27,9 @@ type backend interface {
 	CreateFolder(uid, name, parent string) (doc *storage.Document, err error)
 	UpdateDocument(uid, docID, name, parent string) (err error)
 	DeleteDocument(uid, docID string) (err error)
+	ListVersions(uid, docID string) (versions []storage.DocVersion, err error)
+	ExportVersion(uid, docID, versionID string) (stream io.ReadCloser, err error)
+	RestoreVersion(uid, docID, versionID string) (err error)
 	Sync(uid string)
 }
 type codeGenerator interface {
@@ -52,6 +55,9 @@ type blobHandler interface {
 	Export(uid, docid string) (io.ReadCloser, error)
 	ExportRmDoc(uid, docid string) (io.ReadCloser, error)
 	ExportOCR(uid, docid, format string) (io.ReadCloser, error)
+	ListDocVersions(uid, docid string) ([]storage.DocVersion, error)
+	ExportVersion(uid, docid, versionID string) (io.ReadCloser, error)
+	RestoreVersion(uid, docid, versionID string) error
 }
 
 type notificationHub interface {

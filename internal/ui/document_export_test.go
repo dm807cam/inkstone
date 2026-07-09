@@ -27,6 +27,9 @@ func (f *fakeExportBackend) CreateDocument(_, _, _ string, _ io.Reader) (*storag
 func (f *fakeExportBackend) CreateFolder(_, _, _ string) (*storage.Document, error) { return nil, nil }
 func (f *fakeExportBackend) UpdateDocument(_, _, _, _ string) error                 { return nil }
 func (f *fakeExportBackend) DeleteDocument(_, _ string) error                       { return nil }
+func (f *fakeExportBackend) ListVersions(_, _ string) ([]storage.DocVersion, error) { return nil, nil }
+func (f *fakeExportBackend) ExportVersion(_, _, _ string) (io.ReadCloser, error)    { return nil, nil }
+func (f *fakeExportBackend) RestoreVersion(_, _, _ string) error                    { return nil }
 func (f *fakeExportBackend) Sync(string)                                            {}
 
 // exportDisposition runs getDocument against a tree and returns the header it set.

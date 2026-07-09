@@ -120,7 +120,7 @@ func (fs *FileSystemStorage) ExportRmDoc(uid, docid string) (io.ReadCloser, erro
 	return reader, nil
 }
 
-// Export exports a document
+// Export exports the current version of a document as a PDF.
 func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err error) {
 	tree, err := fs.GetCachedTree(uid)
 	if err != nil {
@@ -130,7 +130,14 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 	if err != nil {
 		return nil, err
 	}
-	ls := fs.BlobStorage(uid)
+	return fs.exportBlobDocument(doc, fs.BlobStorage(uid))
+}
+
+// exportBlobDocument renders a single document to PDF straight from its blobs.
+// The document may come from the current tree or from a historical generation
+// (version history), so it takes the resolved doc/blob store rather than a docid.
+func (fs *FileSystemStorage) exportBlobDocument(doc *models.HashDoc, ls *LocalBlobStorage) (r io.ReadCloser, err error) {
+	docid := doc.EntryName
 
 	// Detect version BEFORE trying to load archive
 	// This is crucial because v6 files can't be unmarshaled by rmapi

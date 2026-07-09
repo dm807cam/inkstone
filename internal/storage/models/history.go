@@ -51,6 +51,29 @@ func (h *RootHistory) OpenIndex(r RemoteStorage) (io.ReadCloser, error) {
 	return r.GetReader(h.Hash)
 }
 
+// DocEntry returns the root-index entry for a document at this generation, or
+// nil if the document was not present. It reads only the root index (not the
+// per-document blobs), so it is cheap enough to call across the whole history
+// when listing a document's versions.
+func (h *RootHistory) DocEntry(r RemoteStorage, documentID string) (*HashEntry, error) {
+	rootFile, err := h.OpenIndex(r)
+	if err != nil {
+		return nil, err
+	}
+	defer rootFile.Close()
+
+	entries, err := parseIndex(rootFile)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.EntryName == documentID {
+			return e, nil
+		}
+	}
+	return nil, nil
+}
+
 func (h *RootHistory) GetHashTree(r RemoteStorage) (t *HashTree, err error) {
 	t = &HashTree{
 		Hash:       h.Hash,

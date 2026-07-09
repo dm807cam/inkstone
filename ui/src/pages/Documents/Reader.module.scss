@@ -43,14 +43,96 @@
     font-variant-numeric: tabular-nums;
 }
 
+// Reader body: PDF scroll pane plus the optional version-history sidebar.
+.body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 .scroll {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y; // we handle pinch ourselves
     background-color: $background2;
     padding: 1rem 0.5rem 2.5rem;
+}
+
+// ============================================================
+// Version history sidebar
+// ============================================================
+.versionBanner {
+    margin: -1rem -0.5rem 1rem;
+    padding: 0.4rem 0.75rem;
+    background-color: color-mix(in srgb, $action 15%, $background2);
+    color: $foreground1;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.historyPanel {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 15rem;
+    max-width: 60%;
+    min-height: 0;
+    border-left: 1px solid $line;
+    background-color: $background1;
+}
+
+.historyHeader {
+    flex-shrink: 0;
+    padding: 0.6rem 0.85rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-bottom: 1px solid $line;
+}
+
+.historyList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+
+    li {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        padding: 0.5rem 0.85rem;
+        border-bottom: 1px solid $line;
+        cursor: pointer;
+
+        &:hover { background-color: $hover-overlay; }
+    }
+}
+
+.historyActive {
+    background-color: color-mix(in srgb, $action 16%, transparent);
+    box-shadow: inset 3px 0 0 $action;
+}
+
+.historyDate { font-size: 0.85rem; }
+
+.historyMeta {
+    font-size: 0.75rem;
+    color: $foreground2;
+}
+
+.historyEmpty {
+    padding: 0.85rem;
+    color: $foreground2;
+    font-size: 0.82rem;
+}
+
+.historyActions {
+    flex-shrink: 0;
+    padding: 0.7rem 0.85rem;
+    border-top: 1px solid $line;
 }
 
 .pages {

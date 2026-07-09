@@ -79,6 +79,11 @@ func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	auth.POST("folders", app.createFolder)
 	auth.GET("documents/:docid/metadata", app.getDocumentMetadata)
 
+	// document version history (sync15)
+	auth.GET("documents/:docid/versions", app.listDocumentVersions)
+	auth.GET("documents/:docid/versions/:versionid", app.getDocumentVersion)
+	auth.POST("documents/:docid/versions/:versionid/restore", app.restoreDocumentVersion)
+
 	// integrations
 	auth.GET("integrations", app.listIntegrations)
 	auth.POST("integrations", app.createIntegration)
