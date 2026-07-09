@@ -4,6 +4,7 @@ import Spinner from "../../components/Spinner";
 import {Alert, Button, Card, Modal, Table} from "react-bootstrap";
 import IntegrationModal from "./IntegrationModal";
 import NewIntegrationModal from "./NewIntegrationModal";
+import HandwritingSettings from "./HandwritingSettings";
 import apiService from "../../services/api.service";
 import { toast } from "react-toastify";
 const integrationListUrl = "integrations";
@@ -116,6 +117,8 @@ const Integrations = () => {
           <NewIntegrationModal onSave={onSave} onClose={closeModal} />
         </Modal>
         </Card>
+
+        <HandwritingSettings />
       </div>
     </div>
   );
