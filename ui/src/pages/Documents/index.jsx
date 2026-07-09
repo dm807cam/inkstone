@@ -114,6 +114,26 @@ export default function DocumentList() {
     setCounter(prev => prev+1);
   };
 
+  // Persist a drag-and-drop move. react-arborist gives the destination folder
+  // id in `parentId`; the synthetic "root" node maps to the backend's
+  // empty-string parent. The visible name is re-sent unchanged so the move
+  // doesn't blank it (the update endpoint replaces both name and parent).
+  const onMove = async ({ dragNodes, parentId }) => {
+    const destParent = !parentId || parentId === "root" ? "" : parentId;
+    try {
+      for (const node of dragNodes) {
+        await apiservice.updateDocument({
+          documentId: node.data.id,
+          name: node.data.name,
+          parentId: destParent,
+        });
+      }
+      onUpdate();
+    } catch (e) {
+      toast.error(`Move failed: ${e.message || e}`);
+    }
+  };
+
   useEffect(() => {
     // Only auto-select first item if there's no itemId in URL
     if (
@@ -272,7 +292,7 @@ export default function DocumentList() {
 
   const tree = (
     <div ref={setTreeContainer} className={styles.treeContainer}>
-      <DocumentTree selection={selected} onSelect={onSelect} treeRef={treeRef} term={term} entries={entries} height={treeHeight} />
+      <DocumentTree selection={selected} onSelect={onSelect} onMove={onMove} treeRef={treeRef} term={term} entries={entries} height={treeHeight} />
     </div>
   );
 

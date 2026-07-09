@@ -4,7 +4,21 @@ import FileIcon from './FileIcon';
 
 import styles from "./Documents.module.scss"
 
-const DocumentTree = ({ selection, onSelect, treeRef, term, entries, height = 700 }) => {
+// The synthetic top-level nodes are containers, not real documents, and must
+// not be dragged around.
+const isSyntheticRoot = (data) => data.id === "root" || data.id === "trash";
+
+// True when a drop target lives inside the Trash subtree. Moving *into* trash
+// via drag is disallowed here (deletion has its own explicit action); dragging
+// items *out* of trash is a move like any other and stays allowed.
+const isInTrash = (node) => {
+  for (let n = node; n; n = n.parent) {
+    if (n.data?.id === "trash") return true;
+  }
+  return false;
+};
+
+const DocumentTree = ({ selection, onSelect, onMove, treeRef, term, entries, height = 700 }) => {
   const onTreeSelect = (sel) => {
     if (sel.length > 0) {
       const node = sel[0];
@@ -74,10 +88,16 @@ const DocumentTree = ({ selection, onSelect, treeRef, term, entries, height = 70
         renderCursor={Cursor}
         searchTerm={term}
         onSelect={onTreeSelect}
+        onMove={onMove}
         className="documents-tree"
         disableEdit={true}
-        disableDrag={true}
-        disableDrop={true}
+        disableDrag={(data) => isSyntheticRoot(data)}
+        disableDrop={({ parentNode }) => {
+          // Disallow dropping as a sibling of "My Files"/"Trash" (the internal
+          // arborist root) and anywhere inside the Trash subtree.
+          if (!parentNode || parentNode.isRoot) return true;
+          return isInTrash(parentNode);
+        }}
         openByDefault={false}
       >
         {Node}
