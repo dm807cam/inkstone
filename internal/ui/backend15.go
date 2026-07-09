@@ -49,6 +49,22 @@ func (b *backend15) DeleteDocument(uid, docID string) (err error) {
 	return b.blobHandler.DeleteBlobDocument(uid, docID)
 }
 
+func (b *backend15) ListVersions(uid, docID string) (versions []storage.DocVersion, err error) {
+	return b.blobHandler.ListDocVersions(uid, docID)
+}
+
+func (b *backend15) ExportVersion(uid, docID, versionID string) (stream io.ReadCloser, err error) {
+	return b.blobHandler.ExportVersion(uid, docID, versionID)
+}
+
+func (b *backend15) RestoreVersion(uid, docID, versionID string) (err error) {
+	err = b.blobHandler.RestoreVersion(uid, docID, versionID)
+	if err == nil {
+		b.Sync(uid)
+	}
+	return err
+}
+
 func (b *backend15) Sync(uid string) {
 	b.h.NotifySync(uid, uuid.NewString())
 }

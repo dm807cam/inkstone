@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Button, ButtonGroup, Dropdown, Spinner } from "react-bootstrap";
 import { AiOutlineDownload } from "react-icons/ai";
-import { BsZoomIn, BsZoomOut } from "react-icons/bs";
+import { BsZoomIn, BsZoomOut, BsClockHistory, BsArrowCounterclockwise } from "react-icons/bs";
+import moment from "moment";
+import { toast } from "react-toastify";
 import constants from "../../common/constants";
+import { formatBytes } from "../../common/format";
 
 import apiservice from "../../services/api.service"
 import NameTag from "../../components/NameTag"
@@ -25,7 +28,7 @@ const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.25;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-export default function FileViewer({ file, onSelect }) {
+export default function FileViewer({ file, onSelect, onUpdate }) {
   const { data } = file;
   const downloadUrl = `${constants.ROOT_URL}/documents/${file.id}`;
 
@@ -33,6 +36,69 @@ export default function FileViewer({ file, onSelect }) {
   const [zoom, setZoom] = useState(1);
   const [containerWidth, setContainerWidth] = useState(0);
   const [loadError, setLoadError] = useState(false);
+
+  // Version history sidebar. activeVersion === null means the live document;
+  // reloadKey busts react-pdf's URL cache after a restore so the (same-URL)
+  // current document is refetched.
+  const [showHistory, setShowHistory] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [versionsLoaded, setVersionsLoaded] = useState(false);
+  const [versionsError, setVersionsError] = useState("");
+  const [activeVersion, setActiveVersion] = useState(null);
+  const [restoring, setRestoring] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const previewUrl = activeVersion
+    ? apiservice.versionUrl(file.id, activeVersion.id)
+    : `${downloadUrl}?r=${reloadKey}`;
+
+  const loadVersions = useCallback(async () => {
+    try {
+      const v = await apiservice.listVersions(file.id);
+      setVersions(v || []);
+      setVersionsError(v && v.length ? "" : "No earlier versions yet.");
+    } catch (e) {
+      setVersions([]);
+      setVersionsError(typeof e === "string" ? e : (e.message || "Version history is unavailable for this document."));
+    } finally {
+      setVersionsLoaded(true);
+    }
+  }, [file.id]);
+
+  const toggleHistory = () => {
+    const next = !showHistory;
+    setShowHistory(next);
+    if (next && !versionsLoaded) loadVersions();
+  };
+
+  const onRestore = async () => {
+    if (!activeVersion) return;
+    if (!window.confirm("Restore this version? The current content is replaced (and kept in history).")) return;
+    setRestoring(true);
+    try {
+      await apiservice.restoreVersion(file.id, activeVersion.id);
+      toast.success("Version restored");
+      setActiveVersion(null);
+      setVersions([]);
+      setVersionsLoaded(false);
+      setReloadKey((k) => k + 1);
+      if (onUpdate) onUpdate();
+      loadVersions();
+    } catch (e) {
+      toast.error(`Restore failed: ${e.message || e}`);
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // Reset the version panel when switching to a different document.
+  useEffect(() => {
+    setShowHistory(false);
+    setVersions([]);
+    setVersionsLoaded(false);
+    setVersionsError("");
+    setActiveVersion(null);
+  }, [file.id]);
 
   const scrollRef = useRef(null);
   const pagesRef = useRef(null);
@@ -176,6 +242,17 @@ export default function FileViewer({ file, onSelect }) {
           <Button variant="outline" onClick={zoomIn} aria-label="Zoom in"><BsZoomIn /></Button>
         </ButtonGroup>
 
+        <Button
+          size="sm"
+          variant="outline"
+          active={showHistory}
+          onClick={toggleHistory}
+          aria-label="Version history"
+          title="Version history"
+        >
+          <BsClockHistory />
+        </Button>
+
         <Dropdown align="end">
           <Dropdown.Toggle size="sm" variant="outline" aria-label="Download">
             <AiOutlineDownload />
@@ -191,42 +268,84 @@ export default function FileViewer({ file, onSelect }) {
         </Dropdown>
       </div>
 
-      <div
-        className={styles.scroll}
-        ref={scrollRef}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        onWheel={onWheel}
-      >
-        <Document
-          file={downloadUrl}
-          onLoadSuccess={onLoadSuccess}
-          onLoadError={() => setLoadError(true)}
-          options={options}
-          loading={<div className={styles.loading}><Spinner animation="border" size="sm" /> <span className="ms-2">Loading…</span></div>}
-          error={<div className={styles.errorState}>Couldn’t load this document.</div>}
+      <div className={styles.body}>
+        <div
+          className={styles.scroll}
+          ref={scrollRef}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onWheel={onWheel}
         >
-          {!loadError && containerWidth > 0 && (
-            <div className={styles.pages} ref={pagesRef}>
-              {Array.from({ length: numPages }, (_, i) => (
-                <div className={styles.pageWrap} key={`page_${i + 1}`}>
-                  <Page
-                    pageNumber={i + 1}
-                    width={pageWidth}
-                    renderAnnotationLayer={false}
-                    renderTextLayer={false}
-                    loading={
-                      <div
-                        className={styles.pagePlaceholder}
-                        style={{ height: Math.round(pageWidth * 1.3) }}
-                      />
-                    }
-                  />
-                </div>
-              ))}
+          {activeVersion && (
+            <div className={styles.versionBanner}>
+              Viewing version from {moment(activeVersion.date).format("L LT")} — read-only preview.
             </div>
           )}
-        </Document>
+          <Document
+            file={previewUrl}
+            onLoadSuccess={onLoadSuccess}
+            onLoadError={() => setLoadError(true)}
+            options={options}
+            loading={<div className={styles.loading}><Spinner animation="border" size="sm" /> <span className="ms-2">Loading…</span></div>}
+            error={<div className={styles.errorState}>Couldn’t load this document.</div>}
+          >
+            {!loadError && containerWidth > 0 && (
+              <div className={styles.pages} ref={pagesRef}>
+                {Array.from({ length: numPages }, (_, i) => (
+                  <div className={styles.pageWrap} key={`page_${i + 1}`}>
+                    <Page
+                      pageNumber={i + 1}
+                      width={pageWidth}
+                      renderAnnotationLayer={false}
+                      renderTextLayer={false}
+                      loading={
+                        <div
+                          className={styles.pagePlaceholder}
+                          style={{ height: Math.round(pageWidth * 1.3) }}
+                        />
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Document>
+        </div>
+
+        {showHistory && (
+          <aside className={styles.historyPanel}>
+            <div className={styles.historyHeader}>Version history</div>
+            <ul className={styles.historyList}>
+              <li
+                className={!activeVersion ? styles.historyActive : ""}
+                onClick={() => setActiveVersion(null)}
+              >
+                <span className={styles.historyDate}>Current</span>
+              </li>
+              {versions.map((v) => (
+                <li
+                  key={v.id}
+                  className={activeVersion && activeVersion.id === v.id ? styles.historyActive : ""}
+                  onClick={() => setActiveVersion(v)}
+                >
+                  <span className={styles.historyDate}>{moment(v.date).format("L LT")}</span>
+                  <span className={styles.historyMeta}>{formatBytes(v.size)}</span>
+                </li>
+              ))}
+            </ul>
+            {(versionsError || (versionsLoaded && versions.length === 0)) && (
+              <div className={styles.historyEmpty}>{versionsError || "No earlier versions yet."}</div>
+            )}
+            {activeVersion && (
+              <div className={styles.historyActions}>
+                <Button size="sm" variant="primary" disabled={restoring} onClick={onRestore}>
+                  <BsArrowCounterclockwise className="me-1" />
+                  {restoring ? "Restoring…" : "Restore this version"}
+                </Button>
+              </div>
+            )}
+          </aside>
+        )}
       </div>
     </div>
   );

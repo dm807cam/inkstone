@@ -278,7 +278,7 @@ export default function DocumentList() {
 
   const content = (
     <>
-      {selected && selected.isLeaf && <File file={selected} onSelect={onSelect} />}
+      {selected && selected.isLeaf && <File file={selected} onSelect={onSelect} onUpdate={onUpdate} />}
       {selected && !selected.isLeaf && <Folder selection={selected} onSelect={onSelect} onUpdate={onUpdate} counter={counter} />}
       {!selected && <div className={styles.emptyState}>Select a document to get started.</div>}
     </>

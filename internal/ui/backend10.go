@@ -120,6 +120,22 @@ func (d *backend10) UpdateDocument(uid, docID, name, parent string) (err error) 
 	return nil
 
 }
+// Version history is reconstructed from the sync15 blob root history, which the
+// legacy sync10 backend does not have.
+var errVersionsSync15Only = fmt.Errorf("version history is only available for sync15 (v6) accounts")
+
+func (d *backend10) ListVersions(uid, docID string) (versions []storage.DocVersion, err error) {
+	return nil, errVersionsSync15Only
+}
+
+func (d *backend10) ExportVersion(uid, docID, versionID string) (stream io.ReadCloser, err error) {
+	return nil, errVersionsSync15Only
+}
+
+func (d *backend10) RestoreVersion(uid, docID, versionID string) (err error) {
+	return errVersionsSync15Only
+}
+
 func (d *backend10) DeleteDocument(uid, docID string) (err error) {
 	err = d.documentHandler.RemoveDocument(uid, docID)
 	if err != nil {
