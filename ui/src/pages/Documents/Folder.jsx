@@ -20,6 +20,7 @@ export default function Folder({ selection, onSelect, onUpdate }) {
   const [selectedIds, setSelectedIds] = useState([]);
 
   const folder = selection
+  const isTrash = folder?.id === "trash";
 
   const onCreateFolderClick = async () => {
     const res = await apiservice.createFolder({ name: folderName, parentId: selection.id });
@@ -47,6 +48,25 @@ export default function Folder({ selection, onSelect, onUpdate }) {
     onUpdate();
   }
 
+  // Restore trashed items by moving them back to the root. The update endpoint
+  // replaces name and parent together, so the current name is re-sent unchanged
+  // and the parent is set to "" (root).
+  const onRestoreClick = async () => {
+    if (selectedIds.length === 0) return;
+    for (const id of selectedIds) {
+      const item = folder.children?.find((f) => f.id === id);
+      const name = item?.data?.name || id;
+      try {
+        await apiservice.updateDocument({ documentId: id, name, parentId: "" });
+        toast.success(`Restored ${name}`);
+      } catch (e) {
+        toast.error(`Failed to restore ${name}`);
+      }
+    }
+    setSelectedIds([]);
+    onUpdate();
+  }
+
   const fileUploaded = () => {
     onUpdate();
   }
@@ -68,9 +88,10 @@ export default function Folder({ selection, onSelect, onUpdate }) {
       </div>
 
       <div className={`${styles.toolbar} ${styles.filedivider}`}>
-        <Button size="sm" variant="outline" onClick={() => setShowCreateFolder(true)}>Create Folder</Button>
+        {!isTrash && <Button size="sm" variant="outline" onClick={() => setShowCreateFolder(true)}>Create Folder</Button>}
         <div className={styles.stretch}></div>
-        <Button size="sm" variant="danger" onClick={onDeleteClick} disabled={selectedIds.length === 0}>Delete</Button>
+        {isTrash && <Button size="sm" variant="success" onClick={onRestoreClick} disabled={selectedIds.length === 0}>Restore</Button>}
+        <Button size="sm" variant="danger" onClick={onDeleteClick} disabled={selectedIds.length === 0}>{isTrash ? "Delete forever" : "Delete"}</Button>
         <ToggleButtonGroup value={listStyle} onChange={(v) => setListStyle(v)} name="listStyle">
           <ToggleButton id="grid" name="grid" size="sm" value="grid" variant="outline">
             <BsFillGridFill />
@@ -81,7 +102,7 @@ export default function Folder({ selection, onSelect, onUpdate }) {
         </ToggleButtonGroup>
       </div>
 
-      <Upload filesUploaded={fileUploaded} uploadFolder={selection.id}></Upload>
+      {!isTrash && <Upload filesUploaded={fileUploaded} uploadFolder={selection.id}></Upload>}
       <FileList
         listStyle={listStyle}
         files={folder.children}
