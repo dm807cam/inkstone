@@ -61,9 +61,7 @@ const NavigationBar = () => {
             <Nav className="me-auto">
               <Nav.Link as={NavLink} to="/documents">Documents</Nav.Link>
               <Nav.Link as={NavLink} to="/integrations">Integrations</Nav.Link>
-              <Nav.Link as={NavLink} to="/connect">Connect</Nav.Link>
               <Nav.Link as={NavLink} to="/screenshare">Screen Share</Nav.Link>
-              {isAdmin() && <Nav.Link as={NavLink} to="/admin">Admin</Nav.Link>}
             </Nav>
             <Nav>
               <NavDropdown
@@ -76,6 +74,8 @@ const NavigationBar = () => {
                 }
               >
                 <NavDropdown.Item as={NavLink} to="/profile">Profile</NavDropdown.Item>
+                <NavDropdown.Item as={NavLink} to="/connect">Connect</NavDropdown.Item>
+                {isAdmin() && <NavDropdown.Item as={NavLink} to="/admin">Admin</NavDropdown.Item>}
                 <NavDropdown.Divider />
                 <NavDropdown.Item as={Button} onClick={handleLogout}>Log out</NavDropdown.Item>
               </NavDropdown>
