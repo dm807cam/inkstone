@@ -424,19 +424,6 @@ func (app *ReactAppWrapper) restoreDocumentVersion(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func (app *ReactAppWrapper) getDocumentMetadata(c *gin.Context) {
-	uid := userID(c)
-	docid := common.ParamS(docIDParam, c)
-	// if err != nil {
-	// 	log.Error(err)
-	// 	c.AbortWithStatus(http.StatusInternalServerError)
-	// 	return
-	// }
-	log.Info(uid, docid)
-	c.JSON(http.StatusOK, "TODO")
-
-}
-
 // move rename
 func (app *ReactAppWrapper) updateDocument(c *gin.Context) {
 	upd := viewmodel.UpdateDoc{}
@@ -579,7 +566,11 @@ func (app *ReactAppWrapper) getUser(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusNotFound, "Invalid user")
 		return
 	}
-	if uid != user.ID && !IsAdmin(c) {
+	// Compare the authenticated caller — not user.ID, which is loaded from the
+	// same `uid` param and so always equals it, making the guard dead code. This
+	// keeps the "only admins may query other users" intent even if the route's
+	// admin gating ever changes. (#34)
+	if userID(c) != user.ID && !IsAdmin(c) {
 		log.Warn("Only admins can query other users")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, "")
 		return

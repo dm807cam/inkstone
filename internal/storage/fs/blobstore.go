@@ -954,7 +954,12 @@ func (fs *FileSystemStorage) StoreBlob(uid, id string, stream io.Reader, lastGen
 		lock := fslock.New(historyPath)
 		err = lock.LockWithTimeout(time.Duration(time.Second * 5))
 		if err != nil {
+			// Fail closed: without the root lock we cannot safely run the
+			// optimistic-concurrency check or mutate .root.history/root, so a
+			// concurrent sync could be silently overwritten. Mirror LoadBlob
+			// and return so the client retries. (issue #29)
 			log.Error("cannot obtain lock")
+			return
 		}
 		defer lock.Unlock()
 
