@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/png"
@@ -47,6 +48,13 @@ const (
 	maxControlBodySize = 1 << 20  // 1 MiB — JSON/text control & telemetry endpoints
 	maxHwrBodySize     = 10 << 20 // 10 MiB — handwriting strokes forwarded to MyScript
 )
+
+// blobUploadLimit caps a single streamed blob upload. It defaults to the size
+// the server already advertises to clients (maxRequestSize), so enforcing it
+// cannot reject a conforming client, but it stops an oversized or endless body
+// from streaming unbounded onto disk (#32). A package var so tests can exercise
+// the 413 path without a multi-gigabyte request.
+var blobUploadLimit int64 = maxRequestSize
 
 // readLimitedBody reads the request body but stops after max bytes, returning an
 // error if the client tries to send more. It guards handlers that buffer the
@@ -937,8 +945,17 @@ func (app *App) blobStorageWrite(c *gin.Context) {
 	hash := c.GetHeader(common.GCPHashHeader)
 	log.Debugf("TODO: check/save etc. write file '%s', hash '%s'", fileName, hash)
 
+	// Enforce the advertised MaxRequestSize so an oversized/endless body cannot
+	// stream unbounded onto disk (#32).
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, blobUploadLimit)
 	_, err := app.blobStorer.StoreBlob(uid, blobID, c.Request.Body, 0)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			log.Warnf("blob upload for %q exceeded the %d byte limit", blobID, blobUploadLimit)
+			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			return
+		}
 		log.Error(err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
