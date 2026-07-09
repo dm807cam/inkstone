@@ -163,7 +163,10 @@
 // ============================================================
 .upload {
     display: flex;
-    flex: 1;
+    // Fixed, compact height so the dropzone doesn't stretch with the viewport
+    // and push the file list around.
+    flex: 0 0 auto;
+    height: 7rem;
     align-items: center;
     flex-direction: column;
     justify-content: center;

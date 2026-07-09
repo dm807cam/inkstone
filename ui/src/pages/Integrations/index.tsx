@@ -77,10 +77,10 @@ const Integrations = () => {
     <div className="page">
       <div style={{ maxWidth: "1100px", marginInline: "auto" }}>
         <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-          <h3 className="mb-0">Integrations</h3>
+          <h3 className="mb-0">Storage Integrations</h3>
           <Button onClick={newIntegration}>New Integration</Button>
         </div>
-        <Card>
+        <Card className="overflow-hidden">
         <Table responsive hover className="mb-0 align-middle">
           <thead>
             <tr>
