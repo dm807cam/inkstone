@@ -1,38 +1,49 @@
-import { BsFilePdf, BsFolder, BsFileEarmark, BsFileEarmarkText, BsCloud, BsFile, BsTrash } from "react-icons/bs";
+import {
+  BsFilePdf,
+  BsFolder2,
+  BsFolder2Open,
+  BsFileEarmark,
+  BsBook,
+  BsJournalText,
+  BsCloud,
+  BsTrash,
+  BsHouseDoor,
+} from "react-icons/bs";
 
-export default function FileIcon({ file }) {
-
+// FileIcon renders the icon for a tree/list entry. `isOpen` only matters for
+// folders, so their glyph reflects the tree's expanded/collapsed state.
+export default function FileIcon({ file, isOpen }) {
   const Icon = () => {
-    if (!!file.icon) {
-      switch (file.icon) {
-        case "device":
-          return <BsFile />
-        case "trash":
-          return <BsTrash />
-        case "cloud":
-          return <BsCloud />
-        default:
-          return <BsFile />
-      }
+    // Synthetic top-level nodes carry an explicit icon hint.
+    switch (file.icon) {
+      case "device":
+        return <BsHouseDoor />;
+      case "trash":
+        return <BsTrash />;
+      case "cloud":
+        return <BsCloud />;
+      default:
+        break;
     }
 
     if (file.isFolder) {
-      return <BsFolder />
+      return isOpen ? <BsFolder2Open /> : <BsFolder2 />;
     }
 
-    if (file.type === "pdf") {
-      return <BsFilePdf />
+    switch (file.type) {
+      case "pdf":
+        return <BsFilePdf />;
+      case "epub":
+        return <BsBook />;
+      case "notebook":
+        return <BsJournalText />;
+      default:
+        return <BsFileEarmark />;
     }
-
-    if (file.type === "notebook") {
-      return <BsFileEarmarkText />
-    }
-
-    return <BsFileEarmark />
-  }
+  };
 
   return (
-    <span style={{ padding: '0 0.5em 0 0' }}>
+    <span className="fileicon" style={{ padding: "0 0.4em 0 0" }}>
       <Icon />
     </span>
   );

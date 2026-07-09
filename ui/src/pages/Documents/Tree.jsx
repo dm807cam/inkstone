@@ -1,4 +1,5 @@
 import { Tree } from 'react-arborist';
+import { BsChevronRight } from 'react-icons/bs';
 import FileIcon from './FileIcon';
 
 import styles from "./Documents.module.scss"
@@ -26,6 +27,7 @@ const DocumentTree = ({ selection, onSelect, onMove, treeRef, term, entries, hei
   }
 
   function Node({ node, style, dragHandle }) {
+    const isFolder = node.data.isFolder || node.isInternal;
     return (
       <div
         style={style}
@@ -33,8 +35,23 @@ const DocumentTree = ({ selection, onSelect, onMove, treeRef, term, entries, hei
         className={ node.isSelected ? styles.selected : ""}
       >
         <div className={itemClassName(node.data)}>
-          <FileIcon file={node.data} />
-          {node.data.name}
+          {isFolder ? (
+            // Toggle without selecting so folders can be expanded in place.
+            <button
+              type="button"
+              className={`treeitem-chevron${node.isOpen ? " is-open" : ""}`}
+              aria-label={node.isOpen ? "Collapse folder" : "Expand folder"}
+              onClick={(e) => { e.stopPropagation(); node.toggle(); }}
+            >
+              <BsChevronRight />
+            </button>
+          ) : (
+            <span className="treeitem-chevron treeitem-chevron--spacer" aria-hidden="true">
+              <BsChevronRight />
+            </span>
+          )}
+          <FileIcon file={node.data} isOpen={node.isOpen} />
+          <span className="treeitem-label">{node.data.name}</span>
         </div>
       </div>
     );

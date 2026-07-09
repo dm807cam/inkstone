@@ -223,11 +223,44 @@ code {
         }
 
         .treeitem-nodename {
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
+            display: flex;
+            align-items: center;
+            min-width: 0;
             margin-left: 0.4rem;
             &.is-folder { font-weight: 600; }
+        }
+
+        // Disclosure chevron: rotates from ▸ to ▾ when the folder is open.
+        .treeitem-chevron {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 1.1rem;
+            height: 1.1rem;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: var(--text-2);
+            cursor: pointer;
+            transition: transform 0.18s ease, color 0.15s ease;
+
+            svg { font-size: 0.7rem; }
+            &:hover { color: var(--brand-accent); }
+            &.is-open { transform: rotate(90deg); }
+
+            // Leaf rows reserve the same width so icons line up under folders.
+            &--spacer {
+                visibility: hidden;
+                cursor: default;
+            }
+        }
+
+        .treeitem-label {
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     }
 }

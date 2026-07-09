@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
+import { BrowserRouter as Router, Route, Switch, Redirect } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 
 import apiService from "./services/api.service";
@@ -11,7 +11,6 @@ import Navigationbar from "./components/Navigation";
 import PasscodeResets from "./components/PasscodeResets";
 
 import Login from "./pages/Login";
-import Home from "./pages/Home";
 import Connect from "./pages/Connect";
 import Documents from "./pages/Documents";
 import Integrations from "./pages/Integrations";
@@ -50,7 +49,8 @@ export default function App() {
             <PasscodeResets />
             <main className="app-main">
               <Switch>
-                <PrivateRoute exact path="/" component={Home} />
+                {/* Land straight on the documents view instead of a separate start screen. */}
+                <Route exact path="/"><Redirect to="/documents" /></Route>
                 <PrivateRoute path="/documents/:itemId?" component={Documents} />
                 <PrivateRoute path="/connect" component={Connect} />
                 <PrivateRoute path="/pair/app" component={Connect} />
