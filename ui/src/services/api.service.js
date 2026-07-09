@@ -131,6 +131,16 @@ class ApiServices {
       headers: this.header(),
     }).then((r) => handleError(r));
   }
+  // Rename and/or move a document. The backend replaces both the visible name
+  // and the parent, so callers must pass the item's current parent when only
+  // renaming (and its current name when only moving). Root is the empty string.
+  updateDocument({ documentId, name, parentId }) {
+    return fetch(`${constants.ROOT_URL}/documents`, {
+      method: "PUT",
+      headers: this.header(),
+      body: JSON.stringify({ documentId, name, parentId }),
+    }).then((r) => handleError(r));
+  }
   download(id, exportType) {
     let url = `${constants.ROOT_URL}/documents/${id}`;
     if (exportType) url += `?type=${exportType}`;

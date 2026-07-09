@@ -18,8 +18,16 @@ export default function Folder({ selection, onSelect, onUpdate }) {
   const [folderName, setFolderName] = useState("");
   const [showCreateFileModal, setShowCreateFolder] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [renameName, setRenameName] = useState("");
+  const [showRenameModal, setShowRenameModal] = useState(false);
 
   const folder = selection
+
+  // The backend stores a document's parent as an id, with the empty string
+  // meaning "root". The tree exposes the root as the pseudo-id "root", so map
+  // it back so rename/move keeps items at the top level instead of orphaning
+  // them under a non-existent "root" folder.
+  const currentParentId = folder?.id === "root" ? "" : folder?.id;
 
   const onCreateFolderClick = async () => {
     const res = await apiservice.createFolder({ name: folderName, parentId: selection.id });
@@ -47,6 +55,34 @@ export default function Folder({ selection, onSelect, onUpdate }) {
     onUpdate();
   }
 
+  const selectedItem = selectedIds.length === 1
+    ? folder?.children?.find((f) => f.id === selectedIds[0])
+    : null;
+
+  const openRename = () => {
+    if (!selectedItem) return;
+    setRenameName(selectedItem.data?.name || "");
+    setShowRenameModal(true);
+  };
+
+  const onRenameSubmit = async () => {
+    const name = renameName.trim();
+    if (!selectedItem || !name) return;
+    try {
+      await apiservice.updateDocument({
+        documentId: selectedItem.id,
+        name,
+        parentId: currentParentId,
+      });
+      toast.success(`Renamed to ${name}`);
+      setShowRenameModal(false);
+      setSelectedIds([]);
+      onUpdate();
+    } catch (e) {
+      toast.error(`Failed to rename: ${e.message || e}`);
+    }
+  };
+
   const fileUploaded = () => {
     onUpdate();
   }
@@ -70,6 +106,7 @@ export default function Folder({ selection, onSelect, onUpdate }) {
       <div className={`${styles.toolbar} ${styles.filedivider}`}>
         <Button size="sm" variant="outline" onClick={() => setShowCreateFolder(true)}>Create Folder</Button>
         <div className={styles.stretch}></div>
+        <Button size="sm" variant="outline" onClick={openRename} disabled={selectedIds.length !== 1}>Rename</Button>
         <Button size="sm" variant="danger" onClick={onDeleteClick} disabled={selectedIds.length === 0}>Delete</Button>
         <ToggleButtonGroup value={listStyle} onChange={(v) => setListStyle(v)} name="listStyle">
           <ToggleButton id="grid" name="grid" size="sm" value="grid" variant="outline">
@@ -102,6 +139,26 @@ export default function Folder({ selection, onSelect, onUpdate }) {
             <Button variant="primary" onClick={onCreateFolderClick}>Create</Button>
 
           </InputGroup>
+        </Modal.Body>
+      </Modal>
+
+      <Modal show={showRenameModal} onHide={() => setShowRenameModal(false)}>
+        <Modal.Header closeButton>
+          Rename
+        </Modal.Header>
+
+        <Modal.Body>
+          <Form onSubmit={(e) => { e.preventDefault(); onRenameSubmit(); }}>
+            <InputGroup className="mb-3">
+              <Form.Control
+                autoFocus={true}
+                type="text"
+                value={renameName}
+                onChange={(e) => setRenameName(e.currentTarget.value)}
+              />
+              <Button type="submit" variant="primary" disabled={!renameName.trim()}>Rename</Button>
+            </InputGroup>
+          </Form>
         </Modal.Body>
       </Modal>
     </>
