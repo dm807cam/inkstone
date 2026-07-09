@@ -424,19 +424,6 @@ func (app *ReactAppWrapper) restoreDocumentVersion(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func (app *ReactAppWrapper) getDocumentMetadata(c *gin.Context) {
-	uid := userID(c)
-	docid := common.ParamS(docIDParam, c)
-	// if err != nil {
-	// 	log.Error(err)
-	// 	c.AbortWithStatus(http.StatusInternalServerError)
-	// 	return
-	// }
-	log.Info(uid, docid)
-	c.JSON(http.StatusOK, "TODO")
-
-}
-
 // move rename
 func (app *ReactAppWrapper) updateDocument(c *gin.Context) {
 	upd := viewmodel.UpdateDoc{}
