@@ -93,6 +93,14 @@ func (app *App) getUserClaims(c *gin.Context) (*UserClaims, error) {
 }
 
 func (app *App) newDevice(c *gin.Context) {
+	// Throttle this unauthenticated pairing endpoint so the code keyspace cannot
+	// be brute-forced without backoff (#34).
+	if !app.deviceCodeLimiter.allow(c.ClientIP()) {
+		log.Warnf("device pairing rate limit hit for %s", c.ClientIP())
+		c.AbortWithStatus(http.StatusTooManyRequests)
+		return
+	}
+
 	var tokenRequest messages.DeviceTokenRequest
 	if err := c.ShouldBindJSON(&tokenRequest); err != nil {
 		badReq(c, err.Error())
