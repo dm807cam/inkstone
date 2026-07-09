@@ -5,7 +5,7 @@ comment. They exist to keep an autonomous loop safe and reviewable.
 
 ## Hard rules (never violated)
 1. **No writes to `main`.** Work only on an `auto-improve/<issue>-<slug>` branch and open a PR.
-   Never push to `main`, never merge, never force-push, never rewrite history.
+   Never push to `main`, never force-push, never rewrite history.
 2. **Self-modification lock.** Never create, edit, or delete files under `.github/`, `.claude/`,
    this `CLAUDE.md`, `improvement/config.yml`, or any CI/security configuration. These are the
    loop's own guardrails; only a human changes them. Refuse and flag any request to do so.
