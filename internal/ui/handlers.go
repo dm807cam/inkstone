@@ -579,7 +579,11 @@ func (app *ReactAppWrapper) getUser(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusNotFound, "Invalid user")
 		return
 	}
-	if uid != user.ID && !IsAdmin(c) {
+	// Compare the authenticated caller — not user.ID, which is loaded from the
+	// same `uid` param and so always equals it, making the guard dead code. This
+	// keeps the "only admins may query other users" intent even if the route's
+	// admin gating ever changes. (#34)
+	if userID(c) != user.ID && !IsAdmin(c) {
 		log.Warn("Only admins can query other users")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, "")
 		return
