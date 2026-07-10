@@ -33,6 +33,11 @@ const (
 	routeStorage   = "/storage"
 )
 
+// maxUploadBytes bounds the presigned document/blob upload bodies so an oversized
+// or endless stream cannot be written unbounded onto disk. It mirrors the
+// MaxRequestSize the server advertises to clients (internal/app/handlers.go). (#32)
+const maxUploadBytes int64 = 7000000000
+
 // ErrorNotFound not found
 var ErrorNotFound = errors.New("not found")
 
@@ -89,11 +94,20 @@ func (app *App) uploadDocument(c *gin.Context) {
 	}
 	id := token.DocumentID
 	log.Debug("[storage] uploading documentId: ", id)
+	// Enforce the advertised upload limit so a client cannot stream an unbounded
+	// body onto disk. (#32)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadBytes)
 	body := c.Request.Body
 	defer body.Close()
 
 	err = app.fs.StoreDocument(token.UserID, id, body)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			log.Warnf("[storage] document upload for %q exceeded the %d byte limit", id, maxUploadBytes)
+			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			return
+		}
 		log.Error(err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
@@ -202,6 +216,9 @@ func (app *App) uploadBlob(c *gin.Context) {
 		return
 	}
 
+	// Enforce the advertised upload limit so a client cannot stream an unbounded
+	// body onto disk. (#32)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadBytes)
 	body := c.Request.Body
 	defer body.Close()
 
@@ -224,6 +241,12 @@ func (app *App) uploadBlob(c *gin.Context) {
 	}
 
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			log.Warnf("blob upload for %q exceeded the %d byte limit", blobID, maxUploadBytes)
+			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			return
+		}
 		log.Error(err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
