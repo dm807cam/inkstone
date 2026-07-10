@@ -77,7 +77,6 @@ func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	auth.DELETE("documents/:docid", app.deleteDocument)
 	auth.PUT("documents", app.updateDocument)
 	auth.POST("folders", app.createFolder)
-	auth.GET("documents/:docid/metadata", app.getDocumentMetadata)
 
 	// document version history (sync15)
 	auth.GET("documents/:docid/versions", app.listDocumentVersions)

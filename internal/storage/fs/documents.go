@@ -243,12 +243,9 @@ func (fs *FileSystemStorage) StoreDocument(uid, id string, stream io.ReadCloser)
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(fullPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	_, err = io.Copy(file, stream)
+	// Atomic + durable write so an interrupted upload cannot leave a truncated
+	// document at its canonical path (#30).
+	_, err = writeFileSync(fullPath, stream)
 	return err
 }
 

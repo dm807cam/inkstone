@@ -46,6 +46,9 @@ type App struct {
 	hwrClient     hwr.Recognizer
 	mqttBroker    *mqtt.Broker
 	roomManager   *screenshare.RoomManager
+
+	// deviceCodeLimiter throttles unauthenticated device-pairing attempts (#34).
+	deviceCodeLimiter *ipRateLimiter
 }
 
 // Start starts the app
@@ -170,6 +173,9 @@ func NewApp(cfg *config.Config) App {
 		passcodeStore: pcStore,
 		codeConnector: codeConnector,
 		hwrClient:     hwr.NewRecognizer(cfg),
+		// Defence-in-depth throttle for the unauthenticated pairing endpoint:
+		// 10 attempts per source per minute, tracking at most 4096 sources.
+		deviceCodeLimiter: newIPRateLimiter(10, time.Minute, 4096),
 	}
 
 	roomMgr := screenshare.NewRoomManager()

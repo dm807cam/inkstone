@@ -954,7 +954,12 @@ func (fs *FileSystemStorage) StoreBlob(uid, id string, stream io.Reader, lastGen
 		lock := fslock.New(historyPath)
 		err = lock.LockWithTimeout(time.Duration(time.Second * 5))
 		if err != nil {
+			// Fail closed: without the root lock we cannot safely run the
+			// optimistic-concurrency check or mutate .root.history/root, so a
+			// concurrent sync could be silently overwritten. Mirror LoadBlob
+			// and return so the client retries. (issue #29)
 			log.Error("cannot obtain lock")
+			return
 		}
 		defer lock.Unlock()
 
@@ -989,6 +994,11 @@ func (fs *FileSystemStorage) StoreBlob(uid, id string, stream io.Reader, lastGen
 			return
 		}
 		hist.WriteString("\n")
+		// Durably persist the generation bump before it is reported to the
+		// client, so a crash right after a sync cannot lose the append (#30).
+		if err = hist.Sync(); err != nil {
+			return
+		}
 
 		reader = io.NopCloser(&buf)
 		size, err1 := hist.Seek(0, io.SeekCurrent)
@@ -1001,17 +1011,41 @@ func (fs *FileSystemStorage) StoreBlob(uid, id string, stream io.Reader, lastGen
 
 	blobPath := path.Join(fs.getUserBlobPath(uid), common.Sanitize(id))
 	log.Info("Write: ", blobPath)
-	file, err := os.Create(blobPath)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-	_, err = io.Copy(file, reader)
-	if err != nil {
-		return
-	}
-
+	_, err = writeFileSync(blobPath, reader)
 	return
+}
+
+// writeFileSync writes r to finalPath atomically and durably. It streams into a
+// temp file in the same directory, fsyncs it, then renames it over finalPath, so
+// a reader never observes a partially written file and an interrupted write
+// leaves finalPath untouched instead of a truncated blob at its canonical
+// content-hash path (#30). The temp file is removed on any error.
+func writeFileSync(finalPath string, r io.Reader) (written int64, err error) {
+	tmp, err := os.CreateTemp(filepath.Dir(finalPath), ".tmp-*")
+	if err != nil {
+		return 0, err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if err != nil {
+			os.Remove(tmpName)
+		}
+	}()
+
+	written, err = io.Copy(tmp, r)
+	if err != nil {
+		tmp.Close()
+		return written, err
+	}
+	if err = tmp.Sync(); err != nil {
+		tmp.Close()
+		return written, err
+	}
+	if err = tmp.Close(); err != nil {
+		return written, err
+	}
+	err = os.Rename(tmpName, finalPath)
+	return written, err
 }
 
 // use file size as generation

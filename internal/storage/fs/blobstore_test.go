@@ -1,14 +1,32 @@
 package fs
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/config"
+	"github.com/juju/fslock"
 )
+
+// failingReader yields one chunk of data and then fails, simulating a client
+// disconnect or I/O error partway through an upload.
+type failingReader struct {
+	chunk []byte
+	sent  bool
+}
+
+func (r *failingReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, r.chunk), nil
+	}
+	return 0, errors.New("simulated mid-stream failure")
+}
 
 // TestLoadBlobSuccess covers the success path of LoadBlob: a stored blob is
 // returned as a readable, closeable reader with the correct size and crc32c
@@ -73,5 +91,133 @@ func TestLoadBlobNotFound(t *testing.T) {
 	if reader != nil {
 		t.Error("expected nil reader for a missing blob")
 		reader.Close()
+	}
+}
+
+// TestStoreBlobRootLockContention guards issue #29: when the per-user
+// .root.history lock cannot be acquired, StoreBlob must fail closed — return an
+// error and leave .root.history and the root blob untouched — rather than log
+// the failure and overwrite the root without the lock (which silently loses a
+// concurrent sync's documents).
+func TestStoreBlobRootLockContention(t *testing.T) {
+	uid := "blobuser"
+	dir := path.Join(os.TempDir(), "rmfake-storeblob-lock")
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	fs := NewStorage(&config.Config{DataDir: dir})
+	blobDir := fs.getUserBlobPath(uid)
+	if err := os.MkdirAll(blobDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hold the root-history lock from a second handle, as a concurrent sync
+	// would. flock treats distinct file descriptors independently, so this
+	// contends with StoreBlob's own lock even within one process.
+	historyPath := path.Join(blobDir, historyFile)
+	held := fslock.New(historyPath)
+	if err := held.LockWithTimeout(time.Second); err != nil {
+		t.Fatalf("could not take the contended lock: %v", err)
+	}
+	defer held.Unlock()
+
+	// Pre-state: the lock above created .root.history empty.
+	before, err := os.Stat(historyPath)
+	if err != nil {
+		t.Fatalf("stat history: %v", err)
+	}
+
+	// StoreBlob cannot obtain the lock, so (after its 5s internal timeout) it
+	// must return an error and mutate nothing.
+	gen, err := fs.StoreBlob(uid, rootBlob, strings.NewReader("new-root-generation"), 0)
+	if err == nil {
+		t.Fatalf("StoreBlob succeeded despite lock contention (gen=%d); expected an error", gen)
+	}
+
+	after, err := os.Stat(historyPath)
+	if err != nil {
+		t.Fatalf("stat history after: %v", err)
+	}
+	if after.Size() != before.Size() {
+		t.Errorf(".root.history size changed from %d to %d; StoreBlob mutated it without the lock",
+			before.Size(), after.Size())
+	}
+
+	if _, err := os.Stat(path.Join(blobDir, rootBlob)); !os.IsNotExist(err) {
+		t.Errorf("root blob was created despite lock contention (err=%v)", err)
+	}
+}
+
+// TestStoreBlobTornWriteLeavesNoFinalFile guards issue #30: if the upload stream
+// fails partway through, StoreBlob must return an error and leave NO file at the
+// canonical (content-addressed) blob path — a truncated blob there would be
+// permanently served as corrupt bytes for a name that promises exact contents.
+func TestStoreBlobTornWriteLeavesNoFinalFile(t *testing.T) {
+	uid := "blobuser"
+	dir := path.Join(os.TempDir(), "rmfake-storeblob-torn")
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	fs := NewStorage(&config.Config{DataDir: dir})
+	blobDir := fs.getUserBlobPath(uid)
+	if err := os.MkdirAll(blobDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	const blobID = "deadbeef"
+	r := &failingReader{chunk: []byte("partial-content-before-failure")}
+	if _, err := fs.StoreBlob(uid, blobID, r, -1); err == nil {
+		t.Fatal("StoreBlob returned nil error on a failing stream; expected an error")
+	}
+
+	if _, err := os.Stat(path.Join(blobDir, blobID)); !os.IsNotExist(err) {
+		t.Errorf("a file exists at the canonical blob path after a torn write (err=%v); "+
+			"StoreBlob must be atomic", err)
+	}
+
+	// The temp file must also be cleaned up on failure.
+	entries, err := os.ReadDir(blobDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		t.Errorf("blob dir not empty after a torn write, leftover: %v", names)
+	}
+}
+
+// TestStoreBlobRoundTrip verifies the atomic write path preserves contents
+// exactly: a stored blob reads back byte-for-byte.
+func TestStoreBlobRoundTrip(t *testing.T) {
+	uid := "blobuser"
+	dir := path.Join(os.TempDir(), "rmfake-storeblob-roundtrip")
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	fs := NewStorage(&config.Config{DataDir: dir})
+	if err := os.MkdirAll(fs.getUserBlobPath(uid), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	const blobID = "cafebabe"
+	const content = "the exact bytes that must survive a temp+rename"
+	if _, err := fs.StoreBlob(uid, blobID, strings.NewReader(content), -1); err != nil {
+		t.Fatalf("StoreBlob returned error: %v", err)
+	}
+
+	reader, _, size, _, err := fs.LoadBlob(uid, blobID)
+	if err != nil {
+		t.Fatalf("LoadBlob returned error: %v", err)
+	}
+	defer reader.Close()
+	if size != int64(len(content)) {
+		t.Errorf("size = %d, want %d", size, len(content))
+	}
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != content {
+		t.Errorf("round-trip content = %q, want %q", got, content)
 	}
 }
