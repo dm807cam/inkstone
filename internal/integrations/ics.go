@@ -38,8 +38,24 @@ type icsIntegration struct {
 
 func newICS(cfg model.IntegrationConfig) *icsIntegration {
 	return &icsIntegration{
-		url:      cfg.Address,
+		url:      normalizeCalendarURL(cfg.Address),
 		insecure: cfg.Insecure,
+	}
+}
+
+// normalizeCalendarURL rewrites webcal(s):// URLs to http(s)://. The webcal
+// scheme is not a distinct transport: it addresses an ICS feed served over
+// plain HTTP(S). Apple iCloud (and other providers) advertise published,
+// read-only calendars this way, so normalising here lets the standard ICS
+// fetch path consume them unchanged.
+func normalizeCalendarURL(u string) string {
+	switch {
+	case strings.HasPrefix(u, "webcals://"):
+		return "https://" + strings.TrimPrefix(u, "webcals://")
+	case strings.HasPrefix(u, "webcal://"):
+		return "https://" + strings.TrimPrefix(u, "webcal://")
+	default:
+		return u
 	}
 }
 
