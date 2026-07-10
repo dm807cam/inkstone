@@ -33,6 +33,19 @@ const cachedTreeName = ".tree"
 const historyFile = ".root.history"
 const rootBlob = "root"
 
+// Bounds for .rmdoc archive uploads. These archives are buffered and extracted
+// in memory, so without caps a large upload or a decompression bomb (a small
+// compressed archive whose entries expand to enormous sizes) can exhaust server
+// memory. They are vars (not consts) so tests can lower them. (#32)
+var (
+	// maxRmDocArchiveBytes caps how much of the uploaded archive is read into
+	// memory before it is even opened as a zip.
+	maxRmDocArchiveBytes int64 = 1 << 30 // 1 GiB
+	// maxRmDocTotalUncompressedBytes caps the total number of uncompressed bytes
+	// extracted from a single archive across all of its entries.
+	maxRmDocTotalUncompressedBytes int64 = 2 << 30 // 2 GiB
+)
+
 // GetCachedTree returns the cached blob tree for the user
 func (fs *FileSystemStorage) GetCachedTree(uid string) (t *models.HashTree, err error) {
 	blobStorage := &LocalBlobStorage{
@@ -711,14 +724,44 @@ func (fs *FileSystemStorage) CreateBlobDocument(uid, filename, parent string, st
 }
 
 func (fs *FileSystemStorage) createFromRmDoc(uid, parent string, stream io.Reader) (*storage.Document, error) {
-	data, err := io.ReadAll(stream)
+	// Read at most maxRmDocArchiveBytes+1 so an oversized upload is rejected
+	// instead of being buffered in full. (#32)
+	data, err := io.ReadAll(io.LimitReader(stream, maxRmDocArchiveBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(data)) > maxRmDocArchiveBytes {
+		return nil, fmt.Errorf("rmdoc: archive exceeds the %d byte limit", maxRmDocArchiveBytes)
 	}
 
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
+	}
+
+	// readEntry extracts a single zip entry while enforcing a running cap on the
+	// total uncompressed bytes, so a decompression bomb cannot exhaust memory
+	// even if its central-directory sizes lie. (#32)
+	var totalUncompressed int64
+	readEntry := func(f *zip.File) ([]byte, error) {
+		remaining := maxRmDocTotalUncompressedBytes - totalUncompressed
+		if remaining <= 0 {
+			return nil, fmt.Errorf("rmdoc: total uncompressed size exceeds the %d byte limit", maxRmDocTotalUncompressedBytes)
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+		b, err := io.ReadAll(io.LimitReader(rc, remaining+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(b)) > remaining {
+			return nil, fmt.Errorf("rmdoc: total uncompressed size exceeds the %d byte limit", maxRmDocTotalUncompressedBytes)
+		}
+		totalUncompressed += int64(len(b))
+		return b, nil
 	}
 
 	var metadataEntry *zip.File
@@ -734,12 +777,7 @@ func (fs *FileSystemStorage) createFromRmDoc(uid, parent string, stream io.Reade
 
 	docid := strings.TrimSuffix(metadataEntry.Name, storage.MetadataFileExt)
 
-	mr, err := metadataEntry.Open()
-	if err != nil {
-		return nil, err
-	}
-	metaBytes, err := io.ReadAll(mr)
-	mr.Close()
+	metaBytes, err := readEntry(metadataEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -772,15 +810,11 @@ func (fs *FileSystemStorage) createFromRmDoc(uid, parent string, stream io.Reade
 
 	for _, f := range zr.File {
 		if strings.HasSuffix(f.Name, storage.ContentFileExt) {
-			cr, err := f.Open()
+			var contentFile models.ContentFile
+			contentBytes, err := readEntry(f)
 			if err == nil {
-				var contentFile models.ContentFile
-				contentBytes, err := io.ReadAll(cr)
-				cr.Close()
-				if err == nil {
-					if json.Unmarshal(contentBytes, &contentFile) == nil && contentFile.FileType != "" {
-						hashDoc.PayloadType = contentFile.FileType
-					}
+				if json.Unmarshal(contentBytes, &contentFile) == nil && contentFile.FileType != "" {
+					hashDoc.PayloadType = contentFile.FileType
 				}
 			}
 			break
@@ -797,12 +831,7 @@ func (fs *FileSystemStorage) createFromRmDoc(uid, parent string, stream io.Reade
 			continue
 		}
 
-		rc, err := f.Open()
-		if err != nil {
-			return nil, err
-		}
-		fileData, err := io.ReadAll(rc)
-		rc.Close()
+		fileData, err := readEntry(f)
 		if err != nil {
 			return nil, err
 		}
