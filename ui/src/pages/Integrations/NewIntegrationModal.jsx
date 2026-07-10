@@ -86,6 +86,7 @@ export default function IntegrationProfileModal(params) {
             <option value="dropbox">Dropbox</option>
             <option value="webhook">Messaging webhook</option>
             <option value="ics">ICS Calendar</option>
+            <option value="apple">Apple Calendar</option>
           </Form.Select>
 
           {integrationForm.provider === "ics" && (
@@ -103,6 +104,22 @@ export default function IntegrationProfileModal(params) {
                 onChange={({ target }) => setIntegrationForm({ ...integrationForm, [target.name]: target.checked })}
                 label="Ignore TLS certificate errors"
               />
+            </>
+          )}
+
+          {integrationForm.provider === "apple" && (
+            <>
+              <Form.Label>iCloud Public Calendar URL</Form.Label>
+              <Form.Control
+                placeholder="webcal://p1-caldav.icloud.com/published/2/..."
+                value={integrationForm.address}
+                name="address"
+                onChange={handleChange}
+              />
+              <Form.Text muted>
+                In the Calendar app, share a calendar as a Public Calendar and
+                paste the webcal:// link here.
+              </Form.Text>
             </>
           )}
 

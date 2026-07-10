@@ -23,6 +23,7 @@ const (
 	GoogleProvider  = "google"
 	LocalfsProvider = "localfs"
 	IcsProvider     = "ics"
+	AppleProvider   = "apple"
 )
 
 type IntegrationProvider interface{}
@@ -71,6 +72,8 @@ func getIntegrationProvider(storer storage.UserStorer, uid, integrationid string
 			return newWebDav(intg), nil
 		case IcsProvider:
 			return newICS(intg), nil
+		case AppleProvider:
+			return newApple(intg), nil
 		}
 	}
 	return nil, fmt.Errorf("integration not found or no implementation %s", integrationid)
@@ -136,6 +139,8 @@ func fixProviderName(n string) string {
 		return "GoogleDrive"
 	case IcsProvider:
 		return "IcsCalendar"
+	case AppleProvider:
+		return "AppleCalendar"
 	default:
 		return n
 	}
@@ -154,6 +159,8 @@ func ProviderType(n string) string {
 	case WebdavProvider:
 		return "Storage"
 	case IcsProvider:
+		fallthrough
+	case AppleProvider:
 		return "Calendar"
 	default:
 		return n
